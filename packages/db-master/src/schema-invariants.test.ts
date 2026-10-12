@@ -21,10 +21,10 @@ test('T2 Master Schema Extension Invariants', async () => {
   ];
 
   for (const table of forbiddenTables) {
-    const res = await prisma.$queryRawUnsafe<any[]>(
+    const res = (await prisma.$queryRawUnsafe(
       `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
       table
-    );
+    )) as any[];
     assert.equal(res.length, 0, `Forbidden tenant HR table '${table}' must NOT exist in the master database.`);
   }
 
@@ -39,10 +39,10 @@ test('T2 Master Schema Extension Invariants', async () => {
   ];
 
   for (const table of requiredControlTables) {
-    const res = await prisma.$queryRawUnsafe<any[]>(
+    const res = (await prisma.$queryRawUnsafe(
       `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
       table
-    );
+    )) as any[];
     assert.equal(res.length, 1, `Required control table '${table}' must exist in master database.`);
   }
 
