@@ -1,0 +1,33 @@
+{
+  "name": "hr360-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HR360 Enterprise Multi-Tenant Platform",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter \"./packages/*\" --filter \"./apps/*\" run build",
+    "test": "pnpm --filter \"./packages/*\" --filter \"./apps/*\" run test",
+    "lint": "pnpm --filter \"./packages/*\" --filter \"./apps/*\" run lint",
+    "lint:docs": "node scripts/doc-lint.js",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,sql}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,sql}\"",
+    "spike:tidb": "pnpm --filter @hr360/spike run test"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.2",
+    "typescript": "^5.8.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "core-js",
+      "prisma",
+      "@prisma/engines",
+      "@prisma/client",
+      "better-sqlite3-multiple-ciphers"
+    ]
+  }
+}

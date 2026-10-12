@@ -1,0 +1,22 @@
+{
+  "name": "@hr360/tenancy",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "dependencies": {
+    "@hr360/crypto-audit": "workspace:*",
+    "@hr360/db-master": "workspace:*",
+    "@hr360/schema": "workspace:*",
+    "kysely": "^0.27.6",
+    "mysql2": "^3.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2"
+  }
+}

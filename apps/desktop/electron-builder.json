@@ -1,0 +1,52 @@
+{
+  "appId": "com.hr360.enterprise",
+  "productName": "HR360",
+  "copyright": "Copyright © 2026 HR360. All rights reserved.",
+  "directories": {
+    "output": "release-builds",
+    "buildResources": "public"
+  },
+  "files": [
+    "dist/**/*",
+    "main.js",
+    "preload.js",
+    "package.json",
+    "!src/**/*",
+    "!src-tauri/**/*",
+    "!**/*.ts",
+    "!**/*.tsx",
+    "!**/*.map"
+  ],
+  "extraMetadata": {
+    "main": "main.js"
+  },
+  "publish": {
+    "provider": "generic",
+    "url": "https://api.hr360.local/v1/updates/stable",
+    "channel": "stable"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "public/icon.ico",
+    "artifactName": "HR360-Setup-${version}.${ext}",
+    "verifyUpdateCodeSignature": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": true,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "public/icon.ico",
+    "uninstallerIcon": "public/icon.ico",
+    "installerHeaderIcon": "public/icon.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "HR360 Enterprise Client",
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": true
+  }
+}

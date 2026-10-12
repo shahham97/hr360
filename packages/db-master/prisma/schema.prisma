@@ -1,0 +1,616 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROVISIONING
+  ACTIVE
+  PROVISION_FAILED
+}
+
+enum TenantStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  EXPIRED
+  SUSPENDED
+  REJECTED
+  PROVISION_FAILED
+  MIGRATION_BLOCKED
+}
+
+enum SubscriptionInterval {
+  MONTHLY
+  ANNUAL
+  LIFETIME
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
+  OVERDUE
+}
+
+enum PaymentMethod {
+  CARD
+  BANK_TRANSFER
+  LOCAL_WALLET
+  MANUAL_ADMIN
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model PlatformStaff {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  passwordHash String       @map("password_hash")
+  fullName     String       @map("full_name")
+  role         PlatformRole
+  totpSecret   String?      @map("totp_secret")
+  totpEnabled  Boolean      @default(false) @map("totp_enabled")
+  isActive     Boolean      @default(true) @map("is_active")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  supportSessions SupportAccessSession[]
+
+  @@index([role, isActive])
+  @@map("platform_staff")
+}
+
+model Registration {
+  id                 String             @id @default(uuid())
+  companyName        String             @map("company_name")
+  adminEmail         String             @map("admin_email")
+  adminPasswordHash  String             @map("admin_password_hash")
+  adminFullName      String             @map("admin_full_name")
+  phone              String
+  country            String             @db.VarChar(2)
+  estimatedEmployees Int?               @map("estimated_employees")
+  selectedPlanTier   String?            @default("STARTER") @map("selected_plan_tier")
+  selectedInterval   String?            @default("MONTHLY") @map("selected_interval")
+  status             RegistrationStatus @default(PENDING)
+  rejectionReason    String?            @map("rejection_reason") @db.Text
+  approvedAt         DateTime?          @map("approved_at")
+  approvedByStaffId  String?            @map("approved_by_staff_id")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  company            Company?
+
+  @@index([status, createdAt])
+  @@index([adminEmail])
+  @@map("registrations")
+}
+
+enum StorageMode {
+  CLOUD_DEDICATED
+  LOCAL
+}
+
+enum ConnectionStatus {
+  UNPROVISIONED
+  PROVISIONING
+  ACTIVE
+  FAILED
+  DRAINING
+  ARCHIVED
+}
+
+model Company {
+  id                 String            @id @default(uuid())
+  registrationId     String?           @unique @map("registration_id")
+  name               String
+  slug               String            @unique @db.VarChar(40)
+  storageMode        StorageMode       @default(CLOUD_DEDICATED) @map("storage_mode")
+  encryptedDek       String?           @map("encrypted_dek") @db.Text
+  status             TenantStatus      @default(PENDING)
+  licenseKey         String?           @unique @map("license_key") @db.VarChar(64)
+  activatedAt        DateTime?         @map("activated_at")
+  archivedAt         DateTime?         @map("archived_at")
+  dataRetentionUntil DateTime?         @map("data_retention_until")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  registration       Registration?     @relation(fields: [registrationId], references: [id])
+  tenant             Tenant?
+  tenantConnection   TenantDbConnection?
+  accessPolicy       CompanyAccessPolicy?
+  supportSessions    SupportAccessSession[]
+  supportLogs        SupportAccessLog[]
+  users              CompanyUser[]
+  subscriptions      Subscription[]
+  invoices           Invoice[]
+  installs           DeviceInstall[]
+  heartbeats         Heartbeat[]
+  leases             LicenseLease[]
+  backupRecords      BackupRecord[]
+  usageSnapshots     UsageSnapshot[]
+  restoreCommands    RestoreCommand[]
+  securityEvents     SecurityEvent[]
+
+  @@map("companies")
+}
+
+model DbProviderAccount {
+  id          String   @id @default(uuid())
+  label       String   @unique @db.VarChar(128)
+  region      String   @db.VarChar(64)
+  capacity    Int      @default(100)
+  notes       String?  @db.Text
+  status      String   @default("ACTIVE") @db.VarChar(32)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  connections TenantDbConnection[]
+
+  @@map("db_provider_accounts")
+}
+
+model TenantDbConnection {
+  id                  String           @id @default(uuid())
+  companyId           String           @unique @map("company_id")
+  providerAccountId   String?          @map("provider_account_id")
+  encryptedConnection String           @map("encrypted_connection") @db.Text
+  hostFingerprint     String           @map("host_fingerprint") @db.VarChar(128)
+  region              String           @default("ap-south-1") @db.VarChar(64)
+  status              ConnectionStatus @default(UNPROVISIONED)
+  schemaVersion       Int              @default(0) @map("schema_version")
+  provisionedAt       DateTime?        @map("provisioned_at")
+  lastTestedAt        DateTime?        @map("last_tested_at")
+  lastError           String?          @map("last_error") @db.Text
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  company             Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  providerAccount     DbProviderAccount? @relation(fields: [providerAccountId], references: [id])
+
+  @@index([status])
+  @@index([hostFingerprint])
+  @@map("tenant_db_connections")
+}
+
+model SupportAccessSession {
+  id          String    @id @default(uuid())
+  companyId   String    @map("company_id")
+  staffId     String    @map("staff_id")
+  reason      String    @db.Text
+  mfaVerified Boolean   @default(false) @map("mfa_verified")
+  ipAddress   String?   @map("ip_address") @db.VarChar(45)
+  expiresAt   DateTime  @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  staff       PlatformStaff @relation(fields: [staffId], references: [id])
+  logs        SupportAccessLog[]
+
+  @@index([companyId, expiresAt])
+  @@index([staffId])
+  @@map("support_access_sessions")
+}
+
+model SupportAccessLog {
+  id         String               @id @default(uuid())
+  sessionId  String               @map("session_id")
+  companyId  String               @map("company_id")
+  staffId    String               @map("staff_id")
+  action     String               @db.VarChar(64)
+  entityType String               @map("entity_type") @db.VarChar(64)
+  entityId   String?              @map("entity_id")
+  details    String?              @db.Text
+  createdAt  DateTime             @default(now()) @map("created_at")
+
+  session    SupportAccessSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  company    Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([companyId, createdAt])
+  @@map("support_access_logs")
+}
+
+model CompanyAccessPolicy {
+  id                   String   @id @default(uuid())
+  companyId            String   @unique @map("company_id")
+  allowSupportAccess   Boolean  @default(true) @map("allow_support_access")
+  requireCustomerMfa   Boolean  @default(false) @map("require_customer_mfa")
+  retentionDays        Int      @default(365) @map("retention_days")
+  maxDevicesAllowed    Int      @default(10) @map("max_devices_allowed")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_access_policies")
+}
+
+model Tenant {
+  id                      String       @id @default(uuid())
+  companyId               String       @unique @map("company_id")
+  databaseName            String       @unique @map("database_name") @db.VarChar(64)
+  dbUser                  String       @map("db_user") @db.VarChar(64)
+  encryptedConnectionInfo String       @map("encrypted_connection_info") @db.Text
+  schemaVersion           Int          @default(0) @map("schema_version")
+  status                  TenantStatus @default(PENDING)
+  migrationBlockedReason  String?      @map("migration_blocked_reason") @db.Text
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
+
+  company                 Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("tenants")
+}
+
+model CompanyUser {
+  id           String    @id @default(uuid())
+  companyId    String    @map("company_id")
+  email        String
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  role         String    @default("COMPANY_ADMIN")
+  totpSecret   String?   @map("totp_secret")
+  totpEnabled  Boolean   @default(false) @map("totp_enabled")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sessions     Session[]
+
+  @@unique([companyId, email])
+  @@index([email])
+  @@map("company_users")
+}
+
+model Session {
+  id           String      @id @default(uuid())
+  userId       String      @map("user_id")
+  tokenHash    String      @unique @map("token_hash")
+  ipAddress    String?     @map("ip_address")
+  userAgent    String?     @map("user_agent") @db.Text
+  expiresAt    DateTime    @map("expires_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  user         CompanyUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("sessions")
+}
+
+model Otp {
+  id        String    @id @default(uuid())
+  email     String
+  codeHash  String    @map("code_hash")
+  purpose   String    @db.VarChar(32)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([email, purpose, expiresAt])
+  @@map("otps")
+}
+
+model Plan {
+  id              String               @id @default(uuid())
+  code            String               @unique @db.VarChar(32)
+  name            String
+  description     String?              @db.Text
+  priceMonthly    Decimal              @map("price_monthly") @db.Decimal(14, 4)
+  priceAnnual     Decimal              @map("price_annual") @db.Decimal(14, 4)
+  priceLifetime   Decimal              @default(899.0000) @map("price_lifetime") @db.Decimal(14, 4)
+  maxEmployees    Int                  @map("max_employees")
+  maxBranches     Int                  @map("max_branches")
+  maxInstalls     Int                  @default(1) @map("max_installs")
+  features        String               @db.Text
+  isActive        Boolean              @default(true) @map("is_active")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  subscriptions   Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id             String               @id @default(uuid())
+  companyId      String               @map("company_id")
+  planId         String               @map("plan_id")
+  interval       SubscriptionInterval @default(MONTHLY) @map("interval_unit")
+  startsAt       DateTime             @map("starts_at")
+  expiresAt      DateTime             @map("expires_at")
+  graceDays      Int                  @default(0) @map("grace_days")
+  autoRenew      Boolean              @default(true) @map("auto_renew")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  company        Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan           Plan                 @relation(fields: [planId], references: [id])
+  invoices       Invoice[]
+
+  @@index([companyId, expiresAt])
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  companyId      String        @map("company_id")
+  subscriptionId String?       @map("subscription_id")
+  invoiceNumber  String        @unique @map("invoice_number")
+  status         InvoiceStatus @default(ISSUED)
+  amountSubtotal Decimal       @map("amount_subtotal") @db.Decimal(14, 4)
+  amountTax      Decimal       @map("amount_tax") @db.Decimal(14, 4)
+  amountTotal    Decimal       @map("amount_total") @db.Decimal(14, 4)
+  issuedAt       DateTime      @default(now()) @map("issued_at")
+  dueAt          DateTime      @map("due_at")
+  paidAt         DateTime?     @map("paid_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  company        Company       @relation(fields: [companyId], references: [id])
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  payments       Payment[]
+
+  @@index([companyId, status])
+  @@map("invoices")
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  invoiceId       String        @map("invoice_id")
+  amount          Decimal       @db.Decimal(14, 4)
+  method          PaymentMethod
+  status          PaymentStatus @default(COMPLETED)
+  referenceNumber String?       @map("reference_number")
+  notes           String?       @db.Text
+  recordedByStaff String?       @map("recorded_by_staff")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId, status])
+  @@map("payments")
+}
+
+model Lead {
+  id              String   @id @default(uuid())
+  fullName        String   @map("full_name")
+  workEmail       String   @map("work_email")
+  companyName     String   @map("company_name")
+  phone           String?  @map("phone")
+  whatsapp        String?  @map("whatsapp")
+  selectedTier    String?  @default("STARTER") @map("selected_tier")
+  selectedPackage String?  @default("MONTHLY") @map("selected_package")
+  isEngaged       Boolean  @default(false) @map("is_engaged")
+  notes           String?  @db.Text
+  ipHash          String   @default("direct_form") @map("ip_hash") @db.VarChar(64)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+
+  downloads       DownloadEvent[]
+
+  @@index([workEmail])
+  @@index([isEngaged])
+  @@map("leads")
+}
+
+model Release {
+  id          String   @id @default(uuid())
+  version     String   @unique @db.VarChar(32)
+  channel     String   @default("stable") @db.VarChar(32)
+  notes       String?  @db.Text
+  downloadUrl String   @map("download_url") @db.VarChar(500)
+  sha256      String   @db.VarChar(64)
+  isMandatory Boolean  @default(false) @map("is_mandatory")
+  minVersion  String?  @map("min_version") @db.VarChar(32)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("releases")
+}
+
+model DownloadEvent {
+  id        String   @id @default(uuid())
+  leadId    String?  @map("lead_id")
+  userId    String?  @map("user_id")
+  version   String   @db.VarChar(32)
+  ipHash    String   @map("ip_hash") @db.VarChar(64)
+  userAgent String?  @map("user_agent") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+
+  @@index([createdAt])
+  @@map("download_events")
+}
+
+model DeviceInstall {
+  id          String    @id @default(uuid())
+  companyId   String    @map("company_id")
+  deviceHash  String    @map("device_hash") @db.VarChar(64)
+  deviceName  String?   @map("device_name")
+  osVersion   String?   @map("os_version")
+  appVersion  String    @map("app_version")
+  isRevoked   Boolean   @default(false) @map("is_revoked")
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, deviceHash])
+  @@index([companyId, isRevoked])
+  @@map("device_installs")
+}
+
+model Heartbeat {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  deviceId   String   @map("device_id")
+  appVersion String   @map("app_version")
+  ipAddress  String?  @map("ip_address")
+  timestamp  DateTime @default(now())
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, timestamp])
+  @@map("heartbeats")
+}
+
+model MigrationRun {
+  id              String   @id @default(uuid())
+  tenantSlug      String   @map("tenant_slug")
+  migrationName   String   @map("migration_name")
+  checksum        String   @db.VarChar(64)
+  executionTimeMs Int      @map("execution_time_ms")
+  status          String   @db.VarChar(20)
+  errorMessage    String?  @map("error_message") @db.Text
+  appliedAt       DateTime @default(now()) @map("applied_at")
+
+  @@index([tenantSlug, migrationName])
+  @@map("migration_runs")
+}
+
+model Announcement {
+  id        String    @id @default(uuid())
+  title     String
+  content   String    @db.Text
+  isActive  Boolean   @default(true) @map("is_active")
+  startsAt  DateTime  @default(now()) @map("starts_at")
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("announcements")
+}
+
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  key         String   @unique @map("flag_key") @db.VarChar(64)
+  description String?
+  isEnabled   Boolean  @default(false) @map("is_enabled")
+  rulesJson   String?  @map("rules_json") @db.Text
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("feature_flags")
+}
+
+model MasterAuditLog {
+  id         String   @id @default(uuid())
+  prevHash   String   @map("prev_hash") @db.VarChar(64)
+  hash       String   @unique @db.VarChar(64)
+  actorId    String   @map("actor_id")
+  actorType  String   @map("actor_type") @db.VarChar(32)
+  action     String   @db.VarChar(64)
+  entityType String   @map("entity_type") @db.VarChar(64)
+  entityId   String   @map("entity_id")
+  metadata   String?  @db.Text
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([actorId, action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+model LicenseLease {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  deviceId    String   @map("device_id") @db.VarChar(64)
+  leaseToken  String   @unique @map("lease_token") @db.VarChar(255)
+  issuedAt    DateTime @default(now()) @map("issued_at")
+  expiresAt   DateTime @map("expires_at")
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  appVersion  String   @map("app_version") @db.VarChar(32)
+  buildDigest String?  @map("build_digest") @db.VarChar(64)
+  isRevoked   Boolean  @default(false) @map("is_revoked")
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, deviceId])
+  @@index([expiresAt])
+  @@map("license_leases")
+}
+
+model BackupRecord {
+  id             String   @id @default(uuid())
+  companyId      String   @map("company_id")
+  backupId       String   @map("backup_id") @db.VarChar(64)
+  schemaVersion  Int      @map("schema_version")
+  sizeBytes      BigInt   @map("size_bytes")
+  checksumSha256 String   @map("checksum_sha256") @db.VarChar(64)
+  storagePath    String?  @map("storage_path") @db.VarChar(255)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@map("backup_records")
+}
+
+model RestoreCommand {
+  id             String    @id @default(uuid())
+  companyId      String    @map("company_id")
+  targetDeviceId String    @map("target_device_id") @db.VarChar(64)
+  backupRecordId String    @map("backup_record_id")
+  status         String    @default("PENDING") @db.VarChar(32)
+  issuedByStaff  String?   @map("issued_by_staff")
+  issuedAt       DateTime  @default(now()) @map("issued_at")
+  completedAt    DateTime? @map("completed_at")
+
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@map("restore_commands")
+}
+
+model UsageSnapshot {
+  id               String   @id @default(uuid())
+  companyId        String   @map("company_id")
+  employeeCount    Int      @map("employee_count")
+  payrollRunsCount Int      @map("payroll_runs_count")
+  dbSizeBytes      BigInt   @map("db_size_bytes")
+  appVersion       String   @map("app_version") @db.VarChar(32)
+  snapshotAt       DateTime @default(now()) @map("snapshot_at")
+
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, snapshotAt])
+  @@map("usage_snapshots")
+}
+
+model SecurityEvent {
+  id        String   @id @default(uuid())
+  companyId String?  @map("company_id")
+  deviceId  String?  @map("device_id") @db.VarChar(64)
+  eventType String   @map("event_type") @db.VarChar(64)
+  details   String?  @db.Text
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  timestamp DateTime @default(now())
+
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, eventType])
+  @@index([timestamp])
+  @@map("security_events")
+}
+

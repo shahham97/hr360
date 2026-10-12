@@ -1,0 +1,20 @@
+THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
+
+The HR360 application incorporates or links with third-party software components licensed under open-source licenses. This document acknowledges the copyright holders and provides applicable licensing terms.
+
+1. Chromium and Electron Runtime
+The application utilizes the Electron application framework and Chromium web runtime.
+License notices and full text for Chromium and its third-party components are located in the installation directory under:
+  - LICENSE
+  - LICENSES.chromium.html
+
+2. Open Source Libraries
+- React (MIT License) - Copyright (c) Meta Platforms, Inc. and affiliates.
+- Lucide Icons (ISC License) - Copyright (c) Lucide Project.
+- jsPDF (MIT License) - Copyright (c) 2010-2026 James Hall, https://github.com/MrRio/jsPDF
+- PapaParse (MIT License) - Copyright (c) 2015 Matthew Holt.
+- SQLite (Public Domain) - Dedicated to the public domain by D. Richard Hipp.
+- better-sqlite3-multiple-ciphers (MIT License) - Copyright (c) Joshua Wise, mscdex, and contributors.
+- SQLCipher (BSD-style License) - Copyright (c) 2008-2026, ZETETIC LLC.
+
+For full license texts of bundled dependencies, please see the respective notices in the application install folder.

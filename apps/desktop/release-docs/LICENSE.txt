@@ -1,0 +1,29 @@
+HR360 SOFTWARE END USER LICENSE AGREEMENT (EULA)
+
+IMPORTANT: PLEASE READ THIS SOFTWARE LICENSE AGREEMENT CAREFULLY BEFORE INSTALLING OR USING THE HR360 APPLICATION.
+
+1. GRANT OF LICENSE
+Subject to the terms and conditions of this Agreement and your organization's valid subscription agreement, HR360 grants you a non-exclusive, non-transferable, revocable license to install and use the HR360 application on authorized client workstations.
+
+2. RESTRICTIONS
+You may not:
+(a) Reverse engineer, decompile, disassemble, or attempt to derive the source code of the software;
+(b) Modify, adapt, translate, or create derivative works of the software;
+(c) Rent, lease, loan, resell, sublicense, or distribute the software to any third party;
+(d) Circumvent or attempt to defeat any security measures, license restrictions, or integrity checks implemented in the software;
+(e) Use the software in any manner that violates applicable laws or regulations.
+
+3. OWNERSHIP
+HR360 retains all right, title, and interest in and to the software, including all intellectual property rights therein.
+
+4. UPDATES
+The software may automatically download and install updates from time to time. You agree that HR360 may deliver such updates to you as part of your use of the software.
+
+5. TERMINATION
+This Agreement terminates automatically upon expiration or cancellation of your subscription, or upon failure to comply with any of its terms. Upon termination, you must cease all use and uninstall the software.
+
+6. DISCLAIMER OF WARRANTIES
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+7. LIMITATION OF LIABILITY
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL HR360 BE LIABLE FOR ANY CONSEQUENTIAL, INCIDENTAL, SPECIAL, OR PUNITIVE DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE SOFTWARE.

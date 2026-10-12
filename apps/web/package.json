@@ -1,0 +1,36 @@
+{
+  "name": "@hr360/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "node --test dist/**/*.test.js",
+    "test:routes": "node scripts/test-route-coverage.js"
+  },
+  "dependencies": {
+    "@hr360/crypto-audit": "workspace:*",
+    "@hr360/db-master": "workspace:*",
+    "@hr360/local-core": "workspace:*",
+    "@hr360/schema": "workspace:*",
+    "@hr360/tenancy": "workspace:*",
+    "@hr360/tenant-services": "workspace:*",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.16.0",
+    "mysql2": "^3.24.5",
+    "next": "^15.2.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.2"
+  }
+}

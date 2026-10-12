@@ -1,0 +1,63 @@
+name: HR360 CI Gatekeeper
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  lint-and-format:
+    name: Lint & Prettier Formatting
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prettier Format Check
+        run: pnpm run format:check
+
+  test-packages:
+    name: Unit & Contract Tests
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build All Packages
+        run: pnpm run build
+
+      - name: Run Schema Tests
+        run: pnpm --filter @hr360/schema run test
+
+      - name: Run Crypto & Audit Tests
+        run: pnpm --filter @hr360/crypto-audit run test
+
+      - name: Run TiDB Spike Tests
+        run: pnpm --filter @hr360/spike run test

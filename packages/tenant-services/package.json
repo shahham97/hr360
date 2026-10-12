@@ -1,0 +1,23 @@
+{
+  "name": "@hr360/tenant-services",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HR360 Tenant Services Abstraction Layer, SQLite & Cloud Adapters, Parity Verification",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "dependencies": {
+    "@hr360/crypto-audit": "workspace:*",
+    "@hr360/local-core": "workspace:*",
+    "@hr360/schema": "workspace:*",
+    "mysql2": "^3.12.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2"
+  }
+}

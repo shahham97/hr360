@@ -1,0 +1,42 @@
+{
+  "name": "@hr360/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint:release": "node scripts/release-lint.js",
+    "package:win": "tsc && vite build && electron-packager . HR360 --platform=win32 --arch=x64 --out=release-builds --overwrite --icon=public/icon.ico --prune=false --ignore=\"^(src|src-tauri|node_modules|tsconfig|vite\\.config)\""
+  },
+  "dependencies": {
+    "@hr360/crypto-audit": "workspace:*",
+    "@hr360/local-core": "workspace:*",
+    "@hr360/schema": "workspace:*",
+    "electron-updater": "^6.8.9",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^1.16.0",
+    "papaparse": "^5.7.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@babel/runtime": "^8.0.7",
+    "@electron/fuses": "^2.1.3",
+    "@electron/packager": "^20.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.6.1",
+    "bytenode": "^1.7.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "postcss": "^8.5.29",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0"
+  }
+}

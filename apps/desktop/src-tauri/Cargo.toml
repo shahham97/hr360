@@ -1,0 +1,22 @@
+[package]
+name = "hr360-desktop"
+version = "1.0.0"
+description = "HR360 Windows Enterprise Client"
+edition = "2021"
+
+[lib]
+name = "hr360_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.0", features = [] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+keyring = "2.1"
+tracing = "0.1"
+hr360-engine = { path = "../../../crates/engine" }

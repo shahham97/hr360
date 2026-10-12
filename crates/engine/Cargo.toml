@@ -1,0 +1,21 @@
+[package]
+name = "hr360-engine"
+version = "0.1.0"
+edition = "2021"
+authors = ["HR360 Engineering"]
+description = "Deterministic payroll, attendance reconciliation, and candidate scoring engine"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rust_decimal = "1.36"
+rust_decimal_macros = "1.36"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+wasm-bindgen = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

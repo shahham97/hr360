@@ -1,0 +1,23 @@
+{
+  "name": "@hr360/local-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HR360 Local Encrypted Database Core, Repositories and Business Logic",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc && node -e \"const fs = require('fs'); const src = 'src/database/migrations'; const dst = 'dist/database/migrations'; if (fs.existsSync(src)) { fs.mkdirSync(dst, { recursive: true }); fs.cpSync(src, dst, { recursive: true }); }\"",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "dependencies": {
+    "@hr360/crypto-audit": "workspace:*",
+    "@hr360/schema": "workspace:*",
+    "better-sqlite3-multiple-ciphers": "^13.0.3",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2"
+  }
+}
