@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
     const companySlug = generateSafeSlug(reg.companyName, slugSuffix);
 
     // Transactionally create Company, Tenant Connection, Access Policy, Admin User, and Subscription
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extension">) => {
       // 1. Update Registration
       await tx.registration.update({
         where: { id: registrationId },
