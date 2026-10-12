@@ -201,7 +201,7 @@ export async function PATCH(req: NextRequest) {
       }
 
       const targetUser = targetUserId
-        ? company.users.find((u) => u.id === targetUserId)
+        ? company.users.find((u: any) => u.id === targetUserId)
         : company.users[0];
 
       if (!targetUser) {
