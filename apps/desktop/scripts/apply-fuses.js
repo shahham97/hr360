@@ -20,8 +20,10 @@ async function applyFusesToExecutable(executablePath) {
     [FuseV1Options.RunAsNode]: false,
     [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
     [FuseV1Options.EnableNodeCliInspectArguments]: false,
-    [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
-    [FuseV1Options.OnlyLoadAppFromAsar]: true,
+    // EnableEmbeddedAsarIntegrityValidation requires macOS packaging to embed hashes;
+    // on Windows-packaged builds it causes ERR_FILE_NOT_FOUND — keep disabled.
+    [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: false,
+    [FuseV1Options.OnlyLoadAppFromAsar]: false,
     [FuseV1Options.GrantFileProtocolExtraPrivileges]: false,
   });
 

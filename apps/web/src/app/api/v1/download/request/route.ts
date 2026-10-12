@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     // Ensure release points to local accessible file in public/builds
     const localDownloadUrl = '/builds/HR360-Setup-1.0.0.zip';
-    const localSha256 = '469db0223a7deb5304ebd3cfdfcc3df6949f7ed576451f2bddd8bc1966f4de92';
+    const localSha256 = 'a29f159c7cbb84c66e6de014499290fa583685b0222d05416a08bd29cb6f329b';
 
     if (!release) {
       release = await prisma.release.create({

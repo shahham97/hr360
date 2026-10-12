@@ -1,0 +1,3 @@
+
+(node:15932) electron: Failed to load URL: file:///D:/HR360/apps/desktop/release-builds/HR360-win32-x64/resources/app.asar/dist/index.html with error: ERR_FILE_NOT_FOUND
+(Use `HR360 --trace-warnings ...` to show where the warning was created)

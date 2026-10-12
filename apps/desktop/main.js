@@ -1,7 +1,12 @@
-const { app, BrowserWindow, shell, ipcMain, safeStorage, dialog } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, safeStorage, dialog, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+
+// Register app scheme as privileged standard secure scheme
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { standard: true, secure: true, allowServiceWorkers: true, supportFetchAPI: true, corsEnabled: true } }
+]);
 
 // Runtime Integrity Verification (Batch C requirement)
 function verifyApplicationIntegrity() {
@@ -477,7 +482,7 @@ function createWindow() {
     if (devServerUrl && navigationUrl.startsWith(devServerUrl)) {
       return; // Allow Vite dev server
     }
-    if (!navigationUrl.startsWith('file://')) {
+    if (!navigationUrl.startsWith('file://') && !navigationUrl.startsWith('app://')) {
       event.preventDefault();
     }
   });
@@ -486,7 +491,7 @@ function createWindow() {
   if (devServerUrl) {
     mainWindow.loadURL(devServerUrl);
   } else {
-    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    mainWindow.loadURL('app://hr360/index.html');
   }
 
   mainWindow.on('closed', () => {
@@ -495,6 +500,51 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Register app:// protocol handler to serve dist files safely with CORS support
+  protocol.handle('app', (request) => {
+    try {
+      const parsedUrl = new URL(request.url);
+      let relativePath = decodeURIComponent(parsedUrl.pathname);
+      if (relativePath.startsWith('/')) relativePath = relativePath.slice(1);
+      if (!relativePath) relativePath = 'index.html';
+
+      const filePath = path.normalize(path.join(__dirname, 'dist', relativePath));
+      // Ensure requested file stays inside dist directory
+      const distDir = path.normalize(path.join(__dirname, 'dist'));
+      if (!filePath.startsWith(distDir)) {
+        return new Response('Forbidden', { status: 403 });
+      }
+
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes = {
+          '.html': 'text/html; charset=utf-8',
+          '.js': 'application/javascript; charset=utf-8',
+          '.mjs': 'application/javascript; charset=utf-8',
+          '.css': 'text/css; charset=utf-8',
+          '.json': 'application/json; charset=utf-8',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.svg': 'image/svg+xml',
+          '.ico': 'image/x-icon',
+          '.woff': 'font/woff',
+          '.woff2': 'font/woff2',
+          '.ttf': 'font/ttf',
+        };
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+        const fileData = fs.readFileSync(filePath);
+        return new Response(fileData, {
+          status: 200,
+          headers: { 'Content-Type': contentType },
+        });
+      }
+      return new Response('Not Found', { status: 404 });
+    } catch (err) {
+      return new Response('Internal Error', { status: 500 });
+    }
+  });
+
   // Run ordered, idempotent local data migration and auto-backup
   try {
     const migrationResult = runLocalDataMigration(app.getPath('userData'), app.getVersion() || '1.0.0');
