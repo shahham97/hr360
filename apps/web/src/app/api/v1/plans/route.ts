@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
       return apiSuccess(FALLBACK_PLANS, requestId);
     }
 
-    const result = plans.map((p) => {
+    const result = plans.map((p: any) => {
       let features: string[] = [];
       try {
         features = JSON.parse(p.features);

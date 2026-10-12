@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     if (module === 'employees') {
       const list = await tenantCtx.services.employee.list(actorCtx);
       // Mask nationalId and bankAccountNumber by default
-      resultData = list.map((emp) => ({
+      resultData = list.map((emp: any) => ({
         ...emp,
         nationalId: emp.nationalId ? `${emp.nationalId.substring(0, 5)}-*****-*` : 'N/A',
         bankAccountNumber: emp.bankAccountNumber ? `****${emp.bankAccountNumber.slice(-4)}` : null,

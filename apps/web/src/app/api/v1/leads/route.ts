@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       take: 100,
     });
 
-    const result = leads.map((l) => ({
+    const result = leads.map((l: any) => ({
       id: l.id,
       fullName: l.fullName,
       workEmail: l.workEmail,

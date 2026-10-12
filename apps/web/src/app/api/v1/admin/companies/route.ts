@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const result = companies.map((c) => {
+    const result = companies.map((c: any) => {
       const activeSub = c.subscriptions[0];
       return {
         id: c.id,
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
           graceDays: activeSub.graceDays,
           isExpired: new Date(activeSub.expiresAt).getTime() < Date.now(),
         } : null,
-        invoices: c.invoices.map((inv) => ({
+        invoices: c.invoices.map((inv: any) => ({
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,
           status: inv.status,
