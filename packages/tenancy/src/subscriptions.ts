@@ -54,7 +54,7 @@ export class SubscriptionEngine {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx: any) => {
       // Create or update subscription
       const sub = await tx.subscription.create({
         data: {
@@ -130,7 +130,7 @@ export class SubscriptionEngine {
 
     const now = new Date();
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx: any) => {
       await tx.payment.update({
         where: { id: paymentId },
         data: {

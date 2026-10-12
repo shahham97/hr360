@@ -148,7 +148,7 @@ export class TenancyProvisioner {
       );
 
       // 7. Persist Company, Tenant, and initial CompanyUser in master database inside transaction
-      const result = await this.masterPrisma.$transaction(async (tx) => {
+      const result = await this.masterPrisma.$transaction(async (tx: any) => {
         const company = await tx.company.create({
           data: {
             registrationId: reg.id,
