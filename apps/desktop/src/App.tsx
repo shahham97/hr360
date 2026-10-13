@@ -76,6 +76,35 @@ import { SystemAndSecurityModule } from './modules/SystemAndSecurityModule';
 import { ErrorBoundary } from './ErrorBoundary';
 import appIcon from './assets/icon.png';
 
+// ---------------------------------------------------------------------------
+// IPC-aware fetch: uses Electron native fetch (no CORS) when in desktop app,
+// falls back to browser fetch when running in dev server / browser.
+// ---------------------------------------------------------------------------
+async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
+  const bridge = (window as any).hr360Desktop;
+  if (bridge?.apiRequest) {
+    const hdrs: Record<string, string> = {};
+    if (init?.headers) {
+      const h = init.headers as Record<string, string>;
+      Object.keys(h).forEach((k) => { hdrs[k] = h[k]; });
+    }
+    const result = await bridge.apiRequest({
+      url,
+      method: init?.method || 'GET',
+      headers: hdrs,
+      body: init?.body ? (typeof init.body === 'string' ? init.body : undefined) : undefined,
+    });
+    // Build a Response-like object so callers work unchanged
+    const body = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+    return new Response(body, {
+      status: result.status,
+      statusText: result.statusText || '',
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+  return fetch(url, init);
+}
+
 const DEFAULT_PAYROLL_RUN: PayrollRun = {
   id: 'run-initial',
   periodName: 'October 2026',
@@ -157,7 +186,7 @@ export default function App() {
     if (typeof window !== 'undefined' && window.location.origin.startsWith('http') && !window.location.origin.includes(':1420')) {
       return window.location.origin;
     }
-    return (import.meta as any).env?.VITE_API_URL || 'https://api.hr360.local';
+    return (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000';
   });
   const cleanUrl = serverUrl.replace(/\/$/, '');
 
@@ -211,7 +240,7 @@ export default function App() {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch(`${cleanUrl}/api/v1/health`, { signal: controller.signal });
+        const res = await apiFetch(`${cleanUrl}/api/v1/health`, { signal: controller.signal });
         clearTimeout(timeoutId);
         if (active) {
           if (res.ok) {
@@ -407,7 +436,7 @@ export default function App() {
       try {
         const token = (session as any)?.accessToken || localStorage.getItem('hr360_access_token');
         if (!token) return;
-        const res = await fetch(`${cleanUrl}/api/v1/desktop/heartbeat`, {
+        const res = await apiFetch(`${cleanUrl}/api/v1/desktop/heartbeat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -460,7 +489,7 @@ export default function App() {
 
     try {
       const cleanUrl = serverUrl.replace(/\/$/, '');
-      const res = await fetch(`${cleanUrl}/api/v1/auth/login`, {
+      const res = await apiFetch(`${cleanUrl}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
@@ -576,7 +605,7 @@ export default function App() {
       setInterviews([]);
       // Fetch existing company records from cloud API
       try {
-        const empRes = await fetch(`${cleanUrl}/api/v1/employees`, {
+        const empRes = await apiFetch(`${cleanUrl}/api/v1/employees`, {
           headers: { Authorization: `Bearer ${data.data.accessToken}` },
         });
         if (empRes.ok) {
@@ -651,7 +680,7 @@ export default function App() {
 
     try {
       const cleanUrl = serverUrl.replace(/\/$/, '');
-      const res = await fetch(`${cleanUrl}/api/v1/registrations`, {
+      const res = await apiFetch(`${cleanUrl}/api/v1/registrations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

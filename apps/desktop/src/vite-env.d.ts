@@ -37,5 +37,12 @@ interface Window {
     openDownload: (downloadUrl: string) => Promise<boolean>;
     startDownload: (downloadUrl: string) => Promise<{ success: boolean; fallback?: boolean }>;
     quitAndInstall: (options?: { forceRestart?: boolean }) => Promise<boolean>;
+    apiRequest?: (options: { url: string; method?: string; headers?: Record<string, string>; body?: any }) => Promise<{
+      ok: boolean;
+      status: number;
+      statusText: string;
+      data?: any;
+      error?: string;
+    }>;
   };
 }

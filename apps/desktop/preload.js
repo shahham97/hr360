@@ -18,4 +18,5 @@ contextBridge.exposeInMainWorld('hr360Desktop', {
   getDatabaseStatus: () => ipcRenderer.invoke('database:status'),
   backupDatabase: (targetDir) => ipcRenderer.invoke('database:backup', targetDir),
   restoreDatabase: (backupFilePath) => ipcRenderer.invoke('database:restore', backupFilePath),
+  apiRequest: (options) => ipcRenderer.invoke('api:request', options),
 });

@@ -152,6 +152,40 @@ ipcMain.handle('system:open-network-settings', () => {
   return false;
 });
 
+// Native IPC HTTP request proxy (bypasses browser origin / CORS constraints)
+ipcMain.handle('api:request', async (event, { url, method = 'GET', headers = {}, body }) => {
+  try {
+    const fetchOptions = {
+      method,
+      headers: { ...headers },
+    };
+    if (body && method !== 'GET' && method !== 'HEAD') {
+      fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+    }
+    const response = await fetch(url, fetchOptions);
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+    return {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      data,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      statusText: err.message || 'Network Error',
+      error: err.message,
+    };
+  }
+});
+
 // ============================================================================
 // Local Encrypted Database Engine Integration (SQLCipher AES-256)
 // ============================================================================
