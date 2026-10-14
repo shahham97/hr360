@@ -15,8 +15,6 @@ import {
   Building,
   CheckCircle2,
   FileText,
-  Star,
-  Quote,
   Zap,
   Lock,
 } from 'lucide-react';
@@ -91,33 +89,10 @@ export default function LandingPage() {
     {
       question: 'How is data encrypted in the cloud database?',
       answer:
-        'All database traffic is encrypted in transit using TLS 1.3 with ISRG Root X1 certificates. Sensitive employee data (such as national CNICs and bank disbursement accounts) is additionally encrypted at the application layer using AES-256-GCM envelope cryptography before insertion.',
+        'All data transmitted between the application and the service is protected using modern transport encryption. Sensitive employee data — such as national IDs and bank account details — undergoes an additional layer of application-level encryption before being stored, ensuring that records remain protected at rest.',
     },
   ];
 
-  const TESTIMONIALS = [
-    {
-      quote:
-        'The dynamic dedicated database architecture solved our compliance audit instantly. Having zero cross-tenant database sharing gave our legal board complete peace of mind.',
-      author: 'Kamran Siddiqui',
-      role: 'Chief Technology Officer',
-      company: 'Apex Logistics & Tech',
-    },
-    {
-      quote:
-        'Our factory in Karachi has 3 ZKTeco biometric turnstiles. The HR360 desktop app auto-syncs every punch straight from our network to dynamic cloud payroll without a single missing minute.',
-      author: 'Fatima Noor',
-      role: 'Head of Human Capital',
-      company: 'Indus Textile Mills',
-    },
-    {
-      quote:
-        'We migrated from manual Excel sheets. Calculating monthly Pakistan tax brackets, EOBI, and provident funds now takes 30 seconds with 100% mathematical precision.',
-      author: 'Tariq Mehmood',
-      role: 'Lead Payroll Director',
-      company: 'Crescent Holdings Ltd',
-    },
-  ];
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 text-slate-800">
@@ -278,50 +253,14 @@ export default function LandingPage() {
                 </div>
 
                 <div className="p-3 bg-slate-800/40 rounded text-[11px] text-slate-400 font-mono">
-                  &gt; SELECT COUNT(*) FROM tenant_yourcompany.employees;<br />
-                  &gt; [Dynamic: 0 records at setup, populated by company admin]
+                  &gt; Company workspace initialized. Employee records: 0<br />
+                  &gt; Ready for administrator setup — awaiting first-time activation.
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Dummy Testimonials Section */}
-        <section className="py-20 max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">
-              Customer Trust & Verification
-            </span>
-            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
-              Trusted by Progressive Enterprises Across Industries
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {TESTIMONIALS.map((t, idx) => (
-              <div
-                key={idx}
-                className="bg-white border border-slate-200 rounded-lg p-6 shadow-2xs hover:shadow-sm transition-shadow flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex text-amber-500 mb-3 space-x-0.5">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-current" />
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-600 italic leading-relaxed mb-6">
-                    "{t.quote}"
-                  </p>
-                </div>
-                <div className="pt-4 border-t border-slate-100">
-                  <div className="font-bold text-slate-900 text-xs">{t.author}</div>
-                  <div className="text-[11px] text-slate-500">{t.role}</div>
-                  <div className="text-[11px] font-semibold text-slate-700">{t.company}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         {/* FAQ Section (Single-Open Accordion) */}
         <FAQSection
@@ -347,13 +286,6 @@ export default function LandingPage() {
                 <Download className="w-4 h-4 mr-2" />
                 Download Windows Client
               </button>
-              <a
-                href="/builds/HR360-Setup-1.0.0.zip"
-                download="HR360-Setup-1.0.0.zip"
-                className="inline-flex items-center px-6 py-3.5 border border-slate-700 bg-slate-800 text-white font-semibold text-sm rounded hover:bg-slate-700 shadow transition-colors"
-              >
-                Direct Download (.zip)
-              </a>
             </div>
           </div>
         </section>
@@ -394,15 +326,8 @@ export default function LandingPage() {
               </div>
             ) : (
               <form onSubmit={handleDownloadSubmit} className="space-y-3.5">
-                <div className="p-2.5 bg-blue-50 border border-blue-200 text-xs rounded text-blue-900 flex justify-between items-center">
-                  <span>Native Windows x64 Package (151 MB)</span>
-                  <a
-                    href="/builds/HR360-Setup-1.0.0.zip"
-                    download="HR360-Setup-1.0.0.zip"
-                    className="font-bold underline text-blue-700 hover:text-blue-900 ml-2 whitespace-nowrap"
-                  >
-                    Direct Download ⬇
-                  </a>
+                <div className="p-2.5 bg-blue-50 border border-blue-200 text-xs rounded text-blue-900">
+                  <span>Native Windows x64 Package — fill in the form below to get your download link.</span>
                 </div>
                 {errorMsg && (
                   <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 rounded">

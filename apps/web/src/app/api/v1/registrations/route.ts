@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PUBLIC_REGISTRATION_FLOW - Public company onboarding flow
 import { NextRequest } from 'next/server';
 import { CompanyRegistrationRequestSchema } from '@hr360/schema';

@@ -186,7 +186,9 @@ export default function App() {
     if (typeof window !== 'undefined' && window.location.origin.startsWith('http') && !window.location.origin.includes(':1420')) {
       return window.location.origin;
     }
-    return (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000';
+    // Production: always point to the live service.
+    // Override via localStorage key 'hr360_server_url' in dev only.
+    return (import.meta as any).env?.VITE_API_URL || 'https://hr360-one.vercel.app';
   });
   const cleanUrl = serverUrl.replace(/\/$/, '');
 
@@ -382,56 +384,49 @@ export default function App() {
     setAuditLogs((prev) => [entry, ...prev]);
   };
 
-  // Heartbeat & SSE Revocation Listener
+  // Company Status Polling (replaces SSE — serverless-compatible)
   useEffect(() => {
     if (!session?.company?.id) return;
 
     const cleanUrl = serverUrl.replace(/\/$/, '');
-    const sse = new EventSource(`${cleanUrl}/api/v1/events/status?companyId=${session.company.id}`);
+    let active = true;
 
-    sse.addEventListener('company_status', (e: MessageEvent) => {
+    const pollStatus = async () => {
       try {
-        const payload = JSON.parse(e.data);
-        if (payload.status !== 'ACTIVE') {
+        const token = (session as any)?.accessToken || localStorage.getItem('hr360_access_token');
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await apiFetch(
+          `${cleanUrl}/api/v1/events/status?companyId=${session.company.id}`,
+          { headers }
+        );
+        if (!res.ok || !active) return;
+        const json = await res.json();
+        const status = json?.data?.status;
+        const reason = json?.data?.reason;
+
+        if (status && status !== 'ACTIVE') {
           setCompanyStatus('LOCKED');
-          setLockReason(payload.reason || `Company status has transitioned to ${payload.status}.`);
+          setLockReason(reason || `Company status has transitioned to ${status}.`);
           setSession((prev) => (prev ? { ...prev, company: { ...prev.company, status: 'LOCKED' } } : null));
-          try {
-            localStorage.removeItem('hr360_access_token');
-          } catch {}
-        } else {
+          try { localStorage.removeItem('hr360_access_token'); } catch {}
+        } else if (status === 'ACTIVE') {
           setCompanyStatus('ACTIVE');
         }
       } catch {}
-    });
+    };
 
-    sse.addEventListener('entitlements_changed', (e: MessageEvent) => {
-      try {
-        const payload = JSON.parse(e.data);
-        if (payload.entitlement) {
-          setSession((prev) => {
-            if (!prev) return null;
-            const updated = {
-              ...prev,
-              company: {
-                ...prev.company,
-                licenseTier: payload.entitlement.planCode,
-                employeeLimit: payload.entitlement.limits.employees,
-                modules: payload.entitlement.modules,
-                limits: payload.entitlement.limits,
-              },
-            };
-            try {
-              localStorage.setItem('hr360_desktop_session', JSON.stringify(updated));
-            } catch {}
-            return updated;
-          });
-        }
-      } catch {}
-    });
+    // Immediate check + poll every 30 s
+    pollStatus();
+    const interval = setInterval(pollStatus, 30000);
 
-    // Real-Time Suspension Enforcement: Active Telemetry Heartbeat
-    let active = true;
+    // Re-check on window focus
+    const onFocus = () => pollStatus();
+    window.addEventListener('focus', onFocus);
+
+    // Heartbeat
+    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
     const verifyCompanyActiveStatus = async () => {
       try {
         const token = (session as any)?.accessToken || localStorage.getItem('hr360_access_token');
@@ -473,12 +468,13 @@ export default function App() {
     };
 
     verifyCompanyActiveStatus();
-    const heartbeatInterval = setInterval(verifyCompanyActiveStatus, 3000);
+    heartbeatInterval = setInterval(verifyCompanyActiveStatus, 30000);
 
     return () => {
       active = false;
-      sse.close();
-      clearInterval(heartbeatInterval);
+      clearInterval(interval);
+      clearInterval(heartbeatInterval!);
+      window.removeEventListener('focus', onFocus);
     };
   }, [session, serverUrl]);
 

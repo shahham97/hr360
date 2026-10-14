@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PUBLIC_PLANS_CATALOG - Public subscription tiers and pricing
 import { NextRequest } from 'next/server';
 import { getMasterPrismaClient } from '@hr360/db-master';

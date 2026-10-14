@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextRequest } from 'next/server';
 import { CreateEmployeeSchema } from '@hr360/schema';
 import { EnvelopeCrypto } from '@hr360/crypto-audit';

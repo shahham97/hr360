@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: BACKUP_METADATA - Sync disaster recovery backup metadata
 import { NextRequest } from 'next/server';
 import { z } from '@hr360/schema';

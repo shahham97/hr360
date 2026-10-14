@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PLATFORM_ADMIN_LOGIN - Master platform admin authentication
 import { NextRequest } from 'next/server';
 import { StaffLoginRequestSchema } from '@hr360/schema';

@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PUBLIC_HEALTH_CHECK - Unauthenticated service availability probe
 import { NextResponse } from 'next/server';
 

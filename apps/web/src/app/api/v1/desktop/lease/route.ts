@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: DESKTOP_LEASE - Desktop activation & ephemeral key release pipeline
 import { NextRequest } from 'next/server';
 import crypto from 'node:crypto';

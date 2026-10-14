@@ -189,6 +189,9 @@ export interface PayslipTemplate {
   companyTaxId: string;
   primaryColor: string;
   showLogo: boolean;
+  logoUrl?: string;
+  fontFamily?: 'helvetica' | 'times' | 'courier';
+  headerLayout?: 'BANNER' | 'MINIMAL' | 'CENTERED';
   showSignatures: boolean;
   showBankDetails: boolean;
   footerNotes: string;
@@ -204,6 +207,10 @@ export interface CertificateTemplate {
   signatoryName: string;
   signatoryTitle: string;
   isDefault: boolean;
+  logoUrl?: string;
+  primaryColor?: string;
+  fontFamily?: 'helvetica' | 'times' | 'courier';
+  showBorder?: boolean;
 }
 
 export interface BenefitPlan {

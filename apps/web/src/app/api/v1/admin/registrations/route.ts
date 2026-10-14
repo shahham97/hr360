@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PLATFORM_ADMIN_REGISTRATIONS - Platform registration approval pipeline
 import { NextRequest } from 'next/server';
 import crypto from 'node:crypto';
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
     const companySlug = generateSafeSlug(reg.companyName, slugSuffix);
 
     // Transactionally create Company, Tenant Connection, Access Policy, Admin User, and Subscription
-    const result = await prisma.$transaction(async (tx: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extension">) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // 1. Update Registration
       await tx.registration.update({
         where: { id: registrationId },

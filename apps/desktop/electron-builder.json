@@ -22,7 +22,7 @@
   },
   "publish": {
     "provider": "generic",
-    "url": "https://api.hr360.local/v1/updates/stable",
+    "url": "https://hr360-one.vercel.app/api/v1/updates",
     "channel": "stable"
   },
   "win": {

@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PUBLIC_AUTH_LOGIN - Unauthenticated login endpoint
 import { NextRequest } from 'next/server';
 import { PasswordHasher } from '@hr360/crypto-audit';

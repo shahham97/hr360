@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextRequest } from 'next/server';
 import crypto from 'node:crypto';
 import { getMasterPrismaClient } from '@hr360/db-master';

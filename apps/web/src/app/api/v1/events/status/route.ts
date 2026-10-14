@@ -1,12 +1,14 @@
-// @ROUTE_EXEMPT: PUBLIC_STATUS_STREAM - SSE live company onboarding status stream
+export const runtime = 'nodejs';
+// @ROUTE_EXEMPT: PUBLIC_STATUS_POLL - Company status polling endpoint
 import { NextRequest } from 'next/server';
-import { revocationStream } from '@hr360/tenancy';
-
+import { getMasterPrismaClient } from '@hr360/db-master';
 import { JsonWebToken, TenantTokenClaims } from '@hr360/crypto-audit';
+import { apiError, apiSuccess, createRequestId } from '@/lib/api-response';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'hr360-default-ultra-secure-jwt-signing-secret-key-32chars!';
 
 export async function GET(req: NextRequest) {
+  const requestId = createRequestId();
   const { searchParams } = new URL(req.url);
   const token = searchParams.get('token') || req.headers.get('authorization')?.replace('Bearer ', '');
   let companyId = searchParams.get('companyId');
@@ -16,44 +18,34 @@ export async function GET(req: NextRequest) {
     if (verified.valid && verified.payload) {
       companyId = verified.payload.companyId;
     } else {
-      return new Response('Invalid or expired authentication token for event stream.', { status: 401 });
+      return apiError('UNAUTHORIZED', 'Invalid or expired token.', 401, undefined, requestId);
     }
   }
 
   if (!companyId) {
-    return new Response('Valid authentication token or companyId is required.', { status: 401 });
+    return apiError('UNAUTHORIZED', 'Valid token or companyId required.', 401, undefined, requestId);
   }
 
-  const stream = new ReadableStream({
-    start(controller) {
-      const encoder = new TextEncoder();
+  try {
+    const prisma = getMasterPrismaClient();
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, status: true },
+    });
 
-      // Send initial handshake event
-      controller.enqueue(encoder.encode(`event: connected\ndata: ${JSON.stringify({ status: 'CONNECTED' })}\n\n`));
+    if (!company) {
+      return apiError('NOT_FOUND', 'Company not found.', 404, undefined, requestId);
+    }
 
-      const statusListener = (data: any) => {
-        try {
-          controller.enqueue(
-            encoder.encode(`event: company_status\ndata: ${JSON.stringify(data)}\n\n`)
-          );
-        } catch {
-          // Stream closed by client
-        }
-      };
-
-      revocationStream.on(`status:${companyId}`, statusListener);
-
-      req.signal.addEventListener('abort', () => {
-        revocationStream.off(`status:${companyId}`, statusListener);
-      });
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
-    },
-  });
+    return apiSuccess(
+      {
+        companyId: company.id,
+        status: company.status,
+        reason: null,
+      },
+      requestId
+    );
+  } catch (err: any) {
+    return apiError('INTERNAL_ERROR', 'Status check failed.', 500, undefined, requestId);
+  }
 }

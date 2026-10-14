@@ -1,8 +1,21 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   serverExternalPackages: ['@node-rs/argon2', '@hr360/crypto-audit', '@prisma/client', 'prisma'],
+  outputFileTracingRoot: path.join(__dirname, '../../'),
+  outputFileTracingIncludes: {
+    '/api/**/*': [
+      '../../node_modules/.pnpm/@node-rs+argon2*/**/*',
+      './node_modules/@node-rs/**/*',
+    ],
+  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('@node-rs/argon2');

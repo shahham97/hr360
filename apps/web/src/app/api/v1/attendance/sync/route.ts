@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextRequest } from 'next/server';
 import { SyncDevicePunchesSchema } from '@hr360/schema';
 import { apiError, apiSuccess, createRequestId } from '@/lib/api-response';

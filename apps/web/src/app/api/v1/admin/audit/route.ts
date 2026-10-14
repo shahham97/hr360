@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PLATFORM_ADMIN_AUDIT - Platform super-admin audit log viewer
 import { NextRequest } from 'next/server';
 import { getMasterPrismaClient } from '@hr360/db-master';

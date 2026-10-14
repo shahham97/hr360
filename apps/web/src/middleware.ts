@@ -5,6 +5,8 @@ const ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:3000',
   'http://localhost:1420',
   'http://127.0.0.1:1420',
+  // Live domain (also set via APP_URL env var; this is the fallback)
+  'https://hr360-one.vercel.app',
 ]);
 
 if (process.env.APP_URL) {
@@ -18,8 +20,13 @@ function resolveAllowedOrigin(requestOrigin: string | null): string {
   if (ALLOWED_ORIGINS.has(requestOrigin)) {
     return requestOrigin;
   }
-  // Allow file:// or electron internal app origin in production
-  if (requestOrigin.startsWith('file://') || requestOrigin === 'null' || requestOrigin.startsWith('vscode-file:')) {
+  // Allow Electron custom protocol, file:// or null origin (desktop app contexts)
+  if (
+    requestOrigin.startsWith('file://') ||
+    requestOrigin.startsWith('app://') ||
+    requestOrigin === 'null' ||
+    requestOrigin.startsWith('vscode-file:')
+  ) {
     return requestOrigin;
   }
   return 'null';

@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PLATFORM_ADMIN_RELEASES - Desktop release manager & rollout control
 import { NextRequest } from 'next/server';
 import { CreateReleaseSchema } from '@hr360/schema';

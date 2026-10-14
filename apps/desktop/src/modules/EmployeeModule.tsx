@@ -9,7 +9,8 @@ import {
   Eye,
   Trash2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Edit3
 } from 'lucide-react';
 import { Employee } from '../types/hr-types';
 import { exportToCSV, parseCSVFile } from '../utils/export-helpers';
@@ -27,6 +28,7 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
   const [deptFilter, setDeptFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
+  const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -348,6 +350,13 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
                       <Eye className="w-3 h-3 mr-1" /> Profile
                     </button>
                     <button
+                      onClick={() => setEditingEmp(emp)}
+                      className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-[11px] inline-flex items-center"
+                      title="Edit Employee Profile"
+                    >
+                      <Edit3 className="w-3 h-3 mr-1" /> Edit
+                    </button>
+                    <button
                       onClick={() => handleDeleteEmployee(emp.id, emp.employeeCode)}
                       className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded text-[11px] inline-flex items-center"
                       title="Deactivate Employee"
@@ -430,7 +439,16 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-200 flex justify-end">
+            <div className="pt-3 border-t border-slate-200 flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  setEditingEmp(selectedEmp);
+                  setSelectedEmp(null);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700 flex items-center"
+              >
+                <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit Profile
+              </button>
               <button
                 onClick={() => setSelectedEmp(null)}
                 className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded hover:bg-slate-800"
@@ -651,6 +669,275 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
                   className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded hover:bg-slate-800"
                 >
                   Save Employee Profile
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Employee Modal */}
+      {editingEmp && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-slate-300 shadow-2xl max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+              <div>
+                <h3 className="font-bold text-base text-slate-900 flex items-center">
+                  <Edit3 className="w-4 h-4 mr-2 text-blue-600" />
+                  Edit Employee Profile ({editingEmp.employeeCode})
+                </h3>
+                <p className="text-xs text-slate-500">Update employee personal, job, and financial records</p>
+              </div>
+              <button onClick={() => setEditingEmp(null)} className="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const updated: Employee = {
+                  ...editingEmp,
+                  firstName: String(formData.get('firstName') || editingEmp.firstName),
+                  lastName: String(formData.get('lastName') || editingEmp.lastName),
+                  email: String(formData.get('email') || editingEmp.email),
+                  phone: String(formData.get('phone') || editingEmp.phone),
+                  gender: String(formData.get('gender') || editingEmp.gender),
+                  dateOfBirth: String(formData.get('dateOfBirth') || editingEmp.dateOfBirth),
+                  nationalId: String(formData.get('nationalId') || editingEmp.nationalId),
+                  department: String(formData.get('department') || editingEmp.department),
+                  designation: String(formData.get('designation') || editingEmp.designation),
+                  branch: String(formData.get('branch') || editingEmp.branch),
+                  employmentType: (formData.get('employmentType') as any) || editingEmp.employmentType,
+                  status: (formData.get('status') as any) || editingEmp.status,
+                  joiningDate: String(formData.get('joiningDate') || editingEmp.joiningDate),
+                  baseSalary: parseFloat(String(formData.get('baseSalary'))) || editingEmp.baseSalary,
+                  bankName: String(formData.get('bankName') || editingEmp.bankName),
+                  bankAccount: String(formData.get('bankAccount') || editingEmp.bankAccount),
+                  emergencyContact: String(formData.get('emergencyContact') || editingEmp.emergencyContact || ''),
+                  emergencyPhone: String(formData.get('emergencyPhone') || editingEmp.emergencyPhone || ''),
+                };
+
+                setEmployees((prev) => prev.map((emp) => (emp.id === editingEmp.id ? updated : emp)));
+                if (selectedEmp?.id === editingEmp.id) setSelectedEmp(updated);
+                onAudit('UPDATE_EMPLOYEE', `Updated employee ${updated.employeeCode}: ${updated.firstName} ${updated.lastName} (${updated.department})`);
+                showNotice(`Employee ${updated.employeeCode} profile updated successfully.`);
+                setEditingEmp(null);
+              }}
+              className="space-y-3 pt-3 text-xs"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">First Name *</label>
+                  <input
+                    type="text"
+                    name="firstName"
+                    required
+                    defaultValue={editingEmp.firstName}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Last Name</label>
+                  <input
+                    type="text"
+                    name="lastName"
+                    defaultValue={editingEmp.lastName}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Email Address *</label>
+                  <input
+                    type="email"
+                    name="email"
+                    required
+                    defaultValue={editingEmp.email}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Phone *</label>
+                  <input
+                    type="text"
+                    name="phone"
+                    required
+                    defaultValue={editingEmp.phone}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Gender</label>
+                  <select
+                    name="gender"
+                    defaultValue={editingEmp.gender}
+                    className="w-full px-3 py-1.5 border border-slate-300 bg-white rounded"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Non-Binary">Non-Binary</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Date of Birth</label>
+                  <input
+                    type="date"
+                    name="dateOfBirth"
+                    defaultValue={editingEmp.dateOfBirth}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">National ID / CNIC</label>
+                  <input
+                    type="text"
+                    name="nationalId"
+                    defaultValue={editingEmp.nationalId}
+                    className="w-full px-3 py-1.5 border border-slate-300 font-mono rounded"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Department *</label>
+                  <input
+                    type="text"
+                    name="department"
+                    required
+                    defaultValue={editingEmp.department}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Designation *</label>
+                  <input
+                    type="text"
+                    name="designation"
+                    required
+                    defaultValue={editingEmp.designation}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Branch / Location</label>
+                  <input
+                    type="text"
+                    name="branch"
+                    defaultValue={editingEmp.branch}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Employment Type</label>
+                  <select
+                    name="employmentType"
+                    defaultValue={editingEmp.employmentType}
+                    className="w-full px-3 py-1.5 border border-slate-300 bg-white rounded"
+                  >
+                    <option value="PERMANENT">Permanent</option>
+                    <option value="CONTRACT">Contract</option>
+                    <option value="PROBATIONARY">Probationary</option>
+                    <option value="INTERN">Intern</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                  <select
+                    name="status"
+                    defaultValue={editingEmp.status}
+                    className="w-full px-3 py-1.5 border border-slate-300 bg-white rounded"
+                  >
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="ON_LEAVE">ON_LEAVE</option>
+                    <option value="TERMINATED">TERMINATED</option>
+                    <option value="RESIGNED">RESIGNED</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Joining Date</label>
+                  <input
+                    type="date"
+                    name="joiningDate"
+                    defaultValue={editingEmp.joiningDate}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Base Monthly Salary (PKR) *</label>
+                  <input
+                    type="number"
+                    name="baseSalary"
+                    required
+                    defaultValue={editingEmp.baseSalary}
+                    className="w-full px-3 py-1.5 border border-slate-300 font-mono rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Bank Name</label>
+                  <input
+                    type="text"
+                    name="bankName"
+                    defaultValue={editingEmp.bankName || ''}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Bank Account / IBAN</label>
+                  <input
+                    type="text"
+                    name="bankAccount"
+                    defaultValue={editingEmp.bankAccount || ''}
+                    className="w-full px-3 py-1.5 border border-slate-300 font-mono rounded"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Emergency Contact Name</label>
+                  <input
+                    type="text"
+                    name="emergencyContact"
+                    defaultValue={editingEmp.emergencyContact || ''}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Emergency Phone</label>
+                  <input
+                    type="text"
+                    name="emergencyPhone"
+                    defaultValue={editingEmp.emergencyPhone || ''}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingEmp(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 text-xs font-semibold rounded hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

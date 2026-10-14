@@ -270,7 +270,7 @@ ipcMain.handle('database:status', () => {
 
 ipcMain.handle('license:activate', async (event, { licenseKey, serverUrl }) => {
   try {
-    const cleanUrl = (serverUrl || 'http://localhost:3000').replace(/\/$/, '');
+    const cleanUrl = (serverUrl || 'https://hr360-one.vercel.app').replace(/\/$/, '');
     const deviceId = getOrCreateDeviceId();
     const res = await fetch(`${cleanUrl}/api/v1/desktop/lease`, {
       method: 'POST',
@@ -396,7 +396,7 @@ const { runLocalDataMigration } = require('./local-migration');
 ipcMain.handle('updater:check-update', async (event, apiUrl) => {
   try {
     const currentVersion = app.getVersion() || '1.0.0';
-    const cleanUrl = (apiUrl || 'http://localhost:3000').replace(/\/$/, '');
+    const cleanUrl = (apiUrl || 'https://hr360-one.vercel.app').replace(/\/$/, '');
     const res = await fetch(`${cleanUrl}/api/v1/admin/releases`);
     if (!res.ok) return { updateAvailable: false };
     const data = await res.json();

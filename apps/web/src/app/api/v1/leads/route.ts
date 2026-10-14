@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PUBLIC_LEADS_SUBMISSION - Marketing demo and lead generation
 import { NextRequest } from 'next/server';
 import { getMasterPrismaClient } from '@hr360/db-master';

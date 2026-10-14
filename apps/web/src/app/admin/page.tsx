@@ -376,7 +376,12 @@ export default function AdminConsole() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error('Service temporarily unavailable');
+      }
       if (!res.ok) {
         throw new Error(data?.error?.message || 'Authentication failed');
       }

@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PLATFORM_ADMIN_STAFF - Platform staff administration
 import { NextRequest } from 'next/server';
 import { getMasterPrismaClient } from '@hr360/db-master';

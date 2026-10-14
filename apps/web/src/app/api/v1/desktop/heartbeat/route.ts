@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: DESKTOP_DEVICE_HEARTBEAT - Workstation telemetry and device binding check
 import { NextRequest } from 'next/server';
 import { DesktopHeartbeatRequestSchema } from '@hr360/schema';

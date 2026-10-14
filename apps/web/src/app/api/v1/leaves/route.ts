@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextRequest } from 'next/server';
 import { apiError, apiSuccess, createRequestId } from '@/lib/api-response';
 import { authenticateTenant } from '@/lib/auth-service';

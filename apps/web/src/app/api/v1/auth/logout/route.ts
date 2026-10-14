@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PUBLIC_AUTH_LOGOUT - Session termination endpoint
 import { NextRequest } from 'next/server';
 import { getMasterPrismaClient } from '@hr360/db-master';

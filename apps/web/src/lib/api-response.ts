@@ -60,6 +60,7 @@ export function apiError(
         message: finalMessage,
         details,
         requestId,
+        correlationId: requestId,
       },
     },
     { status }

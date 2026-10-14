@@ -7,7 +7,8 @@ import {
   Search,
   CheckCircle,
   Trash2,
-  Tag
+  Tag,
+  Edit3
 } from 'lucide-react';
 import { Employee, InventoryItem } from '../types/hr-types';
 
@@ -85,6 +86,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ employees, onA
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [assigningItem, setAssigningItem] = useState<InventoryItem | null>(null);
   const [selectedEmpId, setSelectedEmpId] = useState('');
   const [notice, setNotice] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -448,6 +450,13 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ employees, onA
                         </button>
                       )}
                       <button
+                        onClick={() => setEditingItem(item)}
+                        className="p-1 text-slate-500 hover:text-blue-600 rounded"
+                        title="Edit Asset Details"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => handleDeleteItem(item.id, item.itemCode)}
                         className="p-1 text-slate-400 hover:text-red-600 rounded"
                         title="Delete Asset"
@@ -633,6 +642,151 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ employees, onA
                   className="px-4 py-2 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700 disabled:opacity-50"
                 >
                   Confirm Assignment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Edit Product / Asset Modal */}
+      {editingItem && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-slate-300 shadow-2xl max-w-md w-full p-6 text-xs space-y-4 rounded-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <div>
+                <h3 className="font-bold text-base text-slate-900 flex items-center">
+                  <Edit3 className="w-4 h-4 mr-1.5 text-blue-600" />
+                  Edit Inventory Asset ({editingItem.itemCode})
+                </h3>
+                <p className="text-slate-500 text-[11px]">Update asset details, value, condition and operational status</p>
+              </div>
+              <button onClick={() => setEditingItem(null)} className="font-bold text-base text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const updated: InventoryItem = {
+                  ...editingItem,
+                  name: String(formData.get('name') || editingItem.name).trim(),
+                  category: (formData.get('category') as any) || editingItem.category,
+                  serialNumber: String(formData.get('serialNumber') || editingItem.serialNumber).trim(),
+                  purchaseValue: Number(formData.get('purchaseValue')) || editingItem.purchaseValue,
+                  condition: (formData.get('condition') as any) || editingItem.condition,
+                  status: (formData.get('status') as any) || editingItem.status,
+                  notes: String(formData.get('notes') || '').trim(),
+                };
+
+                setItems((prev) => prev.map((item) => (item.id === editingItem.id ? updated : item)));
+                onAudit('UPDATE_INVENTORY_ITEM', `Updated asset ${updated.itemCode} (${updated.name}) with serial ${updated.serialNumber}`);
+                showNotification(`Asset ${updated.itemCode} updated successfully.`);
+                setEditingItem(null);
+              }}
+              className="space-y-3.5"
+            >
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Product / Asset Name *</label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  defaultValue={editingItem.name}
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-xs focus:outline-none focus:border-slate-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Category *</label>
+                  <select
+                    name="category"
+                    defaultValue={editingItem.category}
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-xs bg-white focus:outline-none focus:border-slate-800"
+                  >
+                    <option value="LAPTOP">Laptop / Notebook</option>
+                    <option value="PERIPHERAL">Peripheral / Dock</option>
+                    <option value="MOBILE">Mobile / Tablet</option>
+                    <option value="FURNITURE">Office Furniture</option>
+                    <option value="ACCESSORY">Accessory / Tool</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Hardware Serial No *</label>
+                  <input
+                    type="text"
+                    name="serialNumber"
+                    required
+                    defaultValue={editingItem.serialNumber}
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-xs font-mono focus:outline-none focus:border-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Purchase Value ($ / PKR)</label>
+                  <input
+                    type="number"
+                    name="purchaseValue"
+                    defaultValue={editingItem.purchaseValue}
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-xs font-mono focus:outline-none focus:border-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Asset Condition</label>
+                  <select
+                    name="condition"
+                    defaultValue={editingItem.condition}
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-xs bg-white focus:outline-none focus:border-slate-800"
+                  >
+                    <option value="NEW">Brand New</option>
+                    <option value="EXCELLENT">Excellent</option>
+                    <option value="GOOD">Good / Fair</option>
+                    <option value="DAMAGED">Under Repair / Damaged</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Lifecycle Status</label>
+                <select
+                  name="status"
+                  defaultValue={editingItem.status}
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-xs bg-white focus:outline-none focus:border-slate-800"
+                >
+                  <option value="AVAILABLE">AVAILABLE (In Pool)</option>
+                  <option value="ASSIGNED">ASSIGNED (In Use)</option>
+                  <option value="RETIRED">RETIRED (Disposed)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Configuration Notes / Remarks</label>
+                <textarea
+                  name="notes"
+                  rows={2}
+                  defaultValue={editingItem.notes || ''}
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-xs focus:outline-none focus:border-slate-800"
+                  placeholder="OS version, warranty, accessories included..."
+                />
+              </div>
+
+              <div className="pt-3 border-t flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingItem(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded hover:bg-slate-50 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700 shadow-sm"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PUBLIC_AUTH_REFRESH - Token rotation endpoint
 import { NextRequest } from 'next/server';
 import { rotateTenantSession } from '@/lib/auth-service';

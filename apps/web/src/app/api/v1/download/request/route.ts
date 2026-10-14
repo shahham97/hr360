@@ -1,11 +1,29 @@
+export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: PUBLIC_DOWNLOAD_REQUEST - Public client installer download generator
 import { NextRequest } from 'next/server';
 import { DownloadRequestSchema } from '@hr360/schema';
 import { getMasterPrismaClient } from '@hr360/db-master';
 import { apiError, apiSuccess, createRequestId, hashIp } from '@/lib/api-response';
 
+// Download URL served via external storage. Set INSTALLER_DOWNLOAD_URL in Vercel env vars.
+// Example: https://pub-<id>.r2.dev/HR360-Setup-1.0.0.zip
+// This is intentionally not hard-coded; see deployment guide.
+const INSTALLER_DOWNLOAD_URL = process.env.INSTALLER_DOWNLOAD_URL || '';
+const INSTALLER_SHA256 = process.env.INSTALLER_SHA256 || '';
+const INSTALLER_VERSION = process.env.INSTALLER_VERSION || '1.0.0';
+
 export async function POST(req: NextRequest) {
   const requestId = createRequestId();
+
+  if (!INSTALLER_DOWNLOAD_URL) {
+    return apiError(
+      'INTERNAL_ERROR',
+      'Installer download is temporarily unavailable. Please contact support.',
+      503,
+      undefined,
+      requestId
+    );
+  }
 
   try {
     const json = await req.json();
@@ -22,7 +40,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { fullName, workEmail, companyName } = parsed.data;
-    const clientIp = req.headers.get('x-forwarded-for') || '10.14.0.1';
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '0.0.0.0';
     const { checkRateLimit } = await import('@/lib/rate-limiter');
     const rateCheck = checkRateLimit(`download:${clientIp}`, 5, 60);
     if (!rateCheck.success) {
@@ -40,38 +58,26 @@ export async function POST(req: NextRequest) {
 
     const prisma = getMasterPrismaClient();
 
-    // 1. Fetch latest stable release
+    // Ensure a release record exists
     let release = await prisma.release.findFirst({
       where: { channel: 'stable' },
       orderBy: { createdAt: 'desc' },
     });
 
-    // Ensure release points to local accessible file in public/builds
-    const localDownloadUrl = '/builds/HR360-Setup-1.0.0.zip';
-    const localSha256 = 'f2ad3cb27a83bc9663bd43c35a437ca12a0019da01a28f671c4717871b6a4add';
-
     if (!release) {
       release = await prisma.release.create({
         data: {
-          version: '1.0.0',
+          version: INSTALLER_VERSION,
           channel: 'stable',
           notes: 'Production Windows x64 build (Compatible with Windows 10 & 11)',
-          downloadUrl: localDownloadUrl,
-          sha256: localSha256,
+          downloadUrl: INSTALLER_DOWNLOAD_URL,
+          sha256: INSTALLER_SHA256,
           isMandatory: false,
-        },
-      });
-    } else {
-      release = await prisma.release.update({
-        where: { id: release.id },
-        data: {
-          downloadUrl: localDownloadUrl,
-          sha256: localSha256,
         },
       });
     }
 
-    // 2. Record or update Lead
+    // Record or update Lead
     const lead = await prisma.lead.create({
       data: {
         fullName,
@@ -81,7 +87,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 3. Record DownloadEvent
+    // Record DownloadEvent
     await prisma.downloadEvent.create({
       data: {
         leadId: lead.id,
@@ -91,9 +97,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 4. Return 5-minute signed tokenized download payload (Section 6.1)
+    // Return signed download payload (5-minute token)
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-    const signedUrl = `${release.downloadUrl}?token=${Buffer.from(
+    const signedUrl = `${INSTALLER_DOWNLOAD_URL}?token=${Buffer.from(
       JSON.stringify({ leadId: lead.id, exp: expiresAt })
     ).toString('base64url')}`;
 
@@ -107,6 +113,7 @@ export async function POST(req: NextRequest) {
       requestId
     );
   } catch (err: any) {
-    return apiError('INTERNAL_ERROR', err.message || 'Internal server error', 500, undefined, requestId);
+    console.error('[download/request]', err);
+    return apiError('INTERNAL_ERROR', 'Internal server error', 500, undefined, requestId);
   }
 }
