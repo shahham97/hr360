@@ -7,12 +7,12 @@ import { apiError, apiSuccess, createRequestId } from '@/lib/api-response';
 export async function GET(req: NextRequest) {
   const requestId = createRequestId();
   const authHeader = req.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
+  const cronSecret = process.env.CRON_SECRET?.trim();
 
   // Protect endpoint: require valid CRON_SECRET if configured
   if (cronSecret) {
-    const bearer = authHeader?.replace(/^Bearer\s+/i, '');
-    const urlSecret = req.nextUrl.searchParams.get('secret');
+    const bearer = authHeader?.replace(/^Bearer\s+/i, '')?.trim();
+    const urlSecret = req.nextUrl.searchParams.get('secret')?.trim();
     if (bearer !== cronSecret && urlSecret !== cronSecret) {
       return apiError('FORBIDDEN', 'Invalid or missing cron secret authorization.', 403, undefined, requestId);
     }
