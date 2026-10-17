@@ -16,6 +16,7 @@
     "spike:tidb": "pnpm --filter @hr360/spike run test"
   },
   "devDependencies": {
+    "next": "^15.2.1",
     "prettier": "^3.5.2",
     "typescript": "^5.8.2"
   },
