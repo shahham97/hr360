@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "pnpm --filter @hr360/schema run build && pnpm --filter @hr360/db-master exec prisma generate && pnpm --filter @hr360/db-master run build && pnpm --filter @hr360/crypto-audit run build && pnpm --filter @hr360/tenancy run build && pnpm --filter @hr360/tenant-services run build && pnpm --filter @hr360/web run build",
+  "buildCommand": "pnpm run build:vercel",
   "outputDirectory": "apps/web/.next",
   "crons": [
     {
