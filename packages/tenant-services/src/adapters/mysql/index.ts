@@ -331,7 +331,7 @@ export class MysqlTenantServices implements ITenantServices {
           original: p,
         }));
         const dedupedFormatted = deduplicatePunches(formatted);
-        const deduped = dedupedFormatted.map((d) => d.original);
+        const deduped = dedupedFormatted.map((d: { original: PunchInput }) => d.original);
         for (const p of deduped) {
           await this.recordPunch(_ctx, p);
         }

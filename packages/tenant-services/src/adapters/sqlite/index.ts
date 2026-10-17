@@ -306,7 +306,7 @@ export class SqliteTenantServices implements ITenantServices {
       },
       async listRuns(_ctx: ActorContext): Promise<PayrollRunDTO[]> {
         const runs = payRepo.listRuns();
-        return runs.map((r) => ({
+        return runs.map((r: any) => ({
           id: r.id,
           month: r.periodMonth,
           year: r.periodYear,
