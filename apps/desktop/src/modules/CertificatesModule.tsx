@@ -93,19 +93,30 @@ export const CertificatesModule: React.FC<Props> = ({
     showNotice(`Generated official ${selectedTemplate.title} PDF for ${currentEmp.firstName} ${currentEmp.lastName}.`);
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, isEditing = false) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEditing = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      const dataUrl = uploadEvent.target?.result as string;
+    try {
+      const { optimizeImageUpload } = await import('../utils/image-helpers');
+      const dataUrl = await optimizeImageUpload(file);
       if (isEditing && editingTemplate) {
         setEditingTemplate({ ...editingTemplate, logoUrl: dataUrl });
       } else {
         setCertLogo(dataUrl);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      // Fallback
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const dataUrl = uploadEvent.target?.result as string;
+        if (isEditing && editingTemplate) {
+          setEditingTemplate({ ...editingTemplate, logoUrl: dataUrl });
+        } else {
+          setCertLogo(dataUrl);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleCreateTemplate = (e: React.FormEvent) => {

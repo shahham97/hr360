@@ -2,6 +2,8 @@
   "appId": "com.hr360.enterprise",
   "productName": "HR360",
   "copyright": "Copyright © 2026 HR360. All rights reserved.",
+  "compression": "maximum",
+  "asar": true,
   "directories": {
     "output": "release-builds",
     "buildResources": "public"
@@ -37,6 +39,7 @@
     "verifyUpdateCodeSignature": false
   },
   "nsis": {
+    "differentialPackage": true,
     "oneClick": false,
     "perMachine": true,
     "allowToChangeInstallationDirectory": true,

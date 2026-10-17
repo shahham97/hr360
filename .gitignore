@@ -26,4 +26,7 @@ apps/desktop/build-target/
 release-builds/
 *.zip
 *.exe
+*.blockmap
+apps/web/public/builds/
+public/builds/
 private-notes/

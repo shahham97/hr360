@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { Shield, Lock, Key, Server, Database, CheckCircle, ArrowRight } from 'lucide-react';
 
 export const metadata = {
-  title: 'Enterprise Security Architecture | HR360',
-  description: 'HR360 enterprise security architecture: zero local data storage, multi-tenant database isolation, TLS 1.3 encryption, and cryptographic audit logs.',
+  title: 'Enterprise Security Overview | HR360',
+  description: 'HR360 enterprise security overview: secure organization isolation, TLS 1.3 encryption, and cryptographic audit logs.',
 };
 
 export default function SecurityPage() {
@@ -38,10 +38,10 @@ export default function SecurityPage() {
             <span>ENTERPRISE-GRADE ASSURANCE</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-4">
-            Security & Data Protection Architecture
+            Security &amp; Data Protection Overview
           </h1>
           <p className="text-slate-400 text-base leading-relaxed">
-            HR360 was engineered from the foundation up to protect workforce and payroll records with multi-layer defense, tenant isolation, and cryptographic auditing.
+            HR360 was engineered from the foundation up to protect workforce and payroll records with multi-layer defense, organizational isolation, and cryptographic auditing.
           </p>
         </div>
 
@@ -51,9 +51,9 @@ export default function SecurityPage() {
             <div className="w-10 h-10 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center mb-4">
               <Database className="w-5 h-5" />
             </div>
-            <h3 className="text-base font-bold text-white mb-2">Isolated Database Architecture</h3>
+            <h3 className="text-base font-bold text-white mb-2">Dedicated Workspace Isolation</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Every subscribing organization operates in a dedicated, cryptographically isolated cloud database environment. Cross-tenant data co-mingling is physically prevented at the storage layer.
+              Every subscribing organization operates in a dedicated, cryptographically isolated cloud environment. Cross-company data co-mingling is prevented at the storage layer.
             </p>
           </div>
 
@@ -112,7 +112,7 @@ export default function SecurityPage() {
         <div className="bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-800/50 rounded-2xl p-8 text-center max-w-2xl mx-auto">
           <h2 className="text-xl font-bold text-white mb-2">Ready to explore enterprise workforce management?</h2>
           <p className="text-xs text-slate-300 mb-6">
-            Schedule an architectural demonstration or test the certified Windows client with your team.
+            Schedule an executive demonstration or test the certified Windows client with your team.
           </p>
           <div className="flex justify-center space-x-4">
             <Link href="/download" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded transition-colors inline-flex items-center">

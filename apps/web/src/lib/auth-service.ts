@@ -251,3 +251,5 @@ export async function authenticateStaff(
     },
   };
 }
+
+export const authenticateRequest = authenticateTenant;

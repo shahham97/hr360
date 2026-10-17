@@ -14,12 +14,12 @@ const SQLITE_FILE = path.join(TEST_DIR, 'parity-test.db');
 const TEST_KEY = 'test-secret-key-parity-32-chars-long!';
 
 const MYSQL_CONFIG = {
-  host: process.env.DB_HOST || 'gateway01.ap-northeast-1.prod.aws.tidbcloud.com',
-  port: Number(process.env.DB_PORT || 4000),
-  user: process.env.DB_USER || '2ZiFanR6Z4DyD1j.root',
-  password: process.env.DB_PASSWORD || 'HKryUMm8cPcMlI6v',
-  database: 'test',
-  ssl: { rejectUnauthorized: true },
+  host: process.env.TEST_DB_HOST || process.env.DB_HOST || '127.0.0.1',
+  port: Number(process.env.TEST_DB_PORT || process.env.DB_PORT || 3306),
+  user: process.env.TEST_DB_USER || process.env.DB_USER || 'root',
+  password: process.env.TEST_DB_PASSWORD || process.env.DB_PASSWORD || '',
+  database: process.env.TEST_DB_NAME || 'test',
+  ssl: process.env.TEST_DB_SSL === 'true' ? { rejectUnauthorized: true } : undefined,
 };
 
 test('T1 Storage Abstraction - Parity Test Suite (SQLite vs Cloud MySQL)', async (t) => {

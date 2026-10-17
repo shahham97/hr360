@@ -170,8 +170,26 @@ export default function AdminConsole() {
   const [errorMsg, setErrorMsg] = useState('');
 
   // Active Workspace Navigation Tab
-  const [activeTab, setActiveTab] = useState<'companies' | 'queue' | 'inquiries' | 'pricing' | 'audit' | 'staff'>('companies');
+  const [activeTab, setActiveTab] = useState<'companies' | 'queue' | 'inquiries' | 'pricing' | 'audit' | 'staff' | 'releases'>('companies');
   const [actionNotice, setActionNotice] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  // Plan Upgrade Diff Modal State
+  const [planChangeCompany, setPlanChangeCompany] = useState<CompanyAccount | null>(null);
+  const [targetPlanCode, setTargetPlanCode] = useState<string>('GROWTH');
+  const [targetInterval, setTargetInterval] = useState<'MONTHLY' | 'ANNUAL' | 'LIFETIME'>('MONTHLY');
+  const [planChangeReason, setPlanChangeReason] = useState<string>('');
+  const [isChangingPlan, setIsChangingPlan] = useState<boolean>(false);
+
+  // Releases State
+  const [releases, setReleases] = useState<any[]>([]);
+  const [isLoadingReleases, setIsLoadingReleases] = useState<boolean>(false);
+  const [newReleaseVersion, setNewReleaseVersion] = useState<string>('');
+  const [newReleaseChannel, setNewReleaseChannel] = useState<string>('stable');
+  const [newReleaseUrl, setNewReleaseUrl] = useState<string>('');
+  const [newReleaseSha256, setNewReleaseSha256] = useState<string>('');
+  const [newReleaseIsMandatory, setNewReleaseIsMandatory] = useState<boolean>(false);
+  const [newReleaseNotes, setNewReleaseNotes] = useState<string>('');
+  const [isSubmittingRelease, setIsSubmittingRelease] = useState<boolean>(false);
 
   // Companies Accounts State & Filters
   const [companies, setCompanies] = useState<CompanyAccount[]>([]);
@@ -735,6 +753,91 @@ export default function AdminConsole() {
     }
   };
 
+  const loadReleases = async () => {
+    setIsLoadingReleases(true);
+    try {
+      const res = await fetch('/api/v1/admin/releases', {
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      if (res.ok && data?.data) {
+        setReleases(data.data);
+      }
+    } catch (err: any) {
+      showNotice(sanitizeDbError(err.message), 'error');
+    } finally {
+      setIsLoadingReleases(false);
+    }
+  };
+
+  const handlePlanChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!planChangeCompany) return;
+    setIsChangingPlan(true);
+    try {
+      const res = await fetch('/api/v1/admin/companies', {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          companyId: planChangeCompany.id,
+          action: 'CHANGE_PLAN',
+          planCode: targetPlanCode,
+          interval: targetInterval,
+          reason: planChangeReason || 'Super Admin tier modification',
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotice(data?.data?.message || 'Plan updated successfully.', 'success');
+        setPlanChangeCompany(null);
+        setPlanChangeReason('');
+        await loadCompanies();
+        await loadAuditLogs();
+      } else {
+        showNotice(sanitizeDbError(data?.error?.message || 'Plan update failed.'), 'error');
+      }
+    } catch (err: any) {
+      showNotice(sanitizeDbError(err.message), 'error');
+    } finally {
+      setIsChangingPlan(false);
+    }
+  };
+
+  const handleCreateRelease = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingRelease(true);
+    try {
+      const res = await fetch('/api/v1/admin/releases', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          version: newReleaseVersion,
+          channel: newReleaseChannel,
+          downloadUrl: newReleaseUrl,
+          sha256: newReleaseSha256,
+          isMandatory: newReleaseIsMandatory,
+          notes: newReleaseNotes,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotice(`Release ${newReleaseVersion} published successfully.`, 'success');
+        setNewReleaseVersion('');
+        setNewReleaseUrl('');
+        setNewReleaseSha256('');
+        setNewReleaseNotes('');
+        await loadReleases();
+        await loadAuditLogs();
+      } else {
+        showNotice(sanitizeDbError(data?.error?.message || 'Failed to publish release.'), 'error');
+      }
+    } catch (err: any) {
+      showNotice(sanitizeDbError(err.message), 'error');
+    } finally {
+      setIsSubmittingRelease(false);
+    }
+  };
+
   // Moderate Pending Registration
   // Moderate Pending Registration
   const handleModerate = async (id: string, action: 'APPROVE' | 'REJECT') => {
@@ -1007,6 +1110,16 @@ export default function AdminConsole() {
             <Users className="w-4 h-4 mr-2 text-purple-400" />
             Platform Staff & Security
           </button>
+
+          <button
+            onClick={() => { setActiveTab('releases'); loadReleases(); }}
+            className={`w-full flex items-center px-3 py-2 text-xs font-medium rounded ${
+              activeTab === 'releases' ? 'bg-slate-700 text-white font-semibold' : 'hover:bg-slate-700/50'
+            }`}
+          >
+            <Layers className="w-4 h-4 mr-2 text-cyan-400" />
+            App Releases & Rollout ({releases.length})
+          </button>
         </aside>
 
         {/* Tab Content */}
@@ -1159,6 +1272,18 @@ export default function AdminConsole() {
                                 title="Reset Company Administrator Password"
                               >
                                 <Key className="w-3 h-3 mr-1" /> Reset Password
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setPlanChangeCompany(c);
+                                  setTargetPlanCode(c.subscription?.planCode || 'GROWTH');
+                                  setTargetInterval((c.subscription?.interval as any) || 'MONTHLY');
+                                }}
+                                className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-[11px] inline-flex items-center font-medium"
+                                title="Change / Upgrade / Downgrade Plan"
+                              >
+                                <Layers className="w-3 h-3 mr-1" /> Change Plan
                               </button>
 
                               {c.status === 'ACTIVE' ? (
@@ -1721,6 +1846,191 @@ export default function AdminConsole() {
               </div>
             </div>
           )}
+
+          {activeTab === 'releases' && (
+            <div className="space-y-6">
+              <div className="pb-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <h1 className="text-xl font-bold text-slate-900">Desktop App Releases & Rollout Control</h1>
+                  <p className="text-xs text-slate-500">
+                    Publish verified installer manifests, enforce mandatory client security gates, and audit desktop update rollouts.
+                  </p>
+                </div>
+                <button
+                  onClick={loadReleases}
+                  disabled={isLoadingReleases}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded inline-flex items-center"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isLoadingReleases ? 'animate-spin' : ''}`} />
+                  Refresh Releases
+                </button>
+              </div>
+
+              {/* Publish Form */}
+              <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-xs">
+                <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center">
+                  <Layers className="w-4 h-4 mr-2 text-blue-600" />
+                  Publish / Register Desktop Release
+                </h2>
+                <form onSubmit={handleCreateRelease} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Version Number *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. 1.0.0"
+                        value={newReleaseVersion}
+                        onChange={(e) => setNewReleaseVersion(e.target.value)}
+                        className="w-full px-3 py-1.5 border border-slate-300 text-xs rounded focus:outline-none focus:border-blue-600 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Release Channel *</label>
+                      <select
+                        value={newReleaseChannel}
+                        onChange={(e) => setNewReleaseChannel(e.target.value)}
+                        className="w-full px-3 py-1.5 border border-slate-300 text-xs rounded focus:outline-none focus:border-blue-600"
+                      >
+                        <option value="stable">stable (Production)</option>
+                        <option value="beta">beta (Pre-release testing)</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center pt-5">
+                      <label className="flex items-center cursor-pointer text-xs font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={newReleaseIsMandatory}
+                          onChange={(e) => setNewReleaseIsMandatory(e.target.checked)}
+                          className="mr-2 h-4 w-4 text-blue-600 rounded"
+                        />
+                        <span>Mandatory Security Update (Blocks older versions)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Installer Download URL *</label>
+                      <input
+                        type="url"
+                        required
+                        placeholder="https://..."
+                        value={newReleaseUrl}
+                        onChange={(e) => setNewReleaseUrl(e.target.value)}
+                        className="w-full px-3 py-1.5 border border-slate-300 text-xs rounded focus:outline-none focus:border-blue-600 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">SHA-256 Checksum (Hex) *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="64-character SHA256 hex string"
+                        value={newReleaseSha256}
+                        onChange={(e) => setNewReleaseSha256(e.target.value)}
+                        className="w-full px-3 py-1.5 border border-slate-300 text-xs rounded focus:outline-none focus:border-blue-600 font-mono text-[11px]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Release Notes / Changelog</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Summary of bug fixes, security updates, and performance improvements..."
+                      value={newReleaseNotes}
+                      onChange={(e) => setNewReleaseNotes(e.target.value)}
+                      className="w-full px-3 py-1.5 border border-slate-300 text-xs rounded focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmittingRelease}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded shadow-xs disabled:opacity-50 inline-flex items-center"
+                    >
+                      {isSubmittingRelease ? 'Registering...' : 'Publish Release Manifest'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Releases Table */}
+              <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-xs">
+                <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Published Releases History ({releases.length})
+                  </h3>
+                </div>
+                {releases.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs">
+                    No releases recorded in master database yet. Click &quot;Refresh Releases&quot; or publish one above.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100/70 text-slate-600 font-semibold border-b">
+                        <tr>
+                          <th className="p-3">Version</th>
+                          <th className="p-3">Channel</th>
+                          <th className="p-3">Enforcement</th>
+                          <th className="p-3">SHA-256 Checksum</th>
+                          <th className="p-3">Release Notes</th>
+                          <th className="p-3">Published Date</th>
+                          <th className="p-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {releases.map((rel: any) => (
+                          <tr key={rel.id || rel.version} className="hover:bg-slate-50/50">
+                            <td className="p-3 font-mono font-bold text-slate-900">{rel.version}</td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase">
+                                {rel.channel || 'stable'}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              {rel.isMandatory ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                                  Mandatory Gate
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                  Optional
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 font-mono text-[11px] text-slate-500 max-w-[160px] truncate" title={rel.sha256}>
+                              {rel.sha256 ? `${rel.sha256.substring(0, 16)}...` : '—'}
+                            </td>
+                            <td className="p-3 text-slate-600 max-w-[200px] truncate" title={rel.notes || ''}>
+                              {rel.notes || 'No notes provided'}
+                            </td>
+                            <td className="p-3 text-slate-500">
+                              {new Date(rel.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="p-3 text-right">
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(rel.downloadUrl);
+                                  showNotice('Download URL copied to clipboard!', 'success');
+                                }}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-medium"
+                              >
+                                Copy URL
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </main>
       </div>
 
@@ -1918,6 +2228,149 @@ export default function AdminConsole() {
                   className="px-4 py-1.5 bg-slate-900 text-white font-semibold rounded hover:bg-slate-800"
                 >
                   {isResettingPassword ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Plan Upgrade / Downgrade Diff Modal */}
+      {planChangeCompany && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-slate-300 shadow-2xl max-w-xl w-full p-6 text-xs space-y-4 rounded-lg">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <h3 className="font-bold text-base text-slate-900 flex items-center">
+                <Layers className="w-4 h-4 mr-2 text-blue-600" />
+                Plan Modification &amp; Entitlement Diff: {planChangeCompany.name}
+              </h3>
+              <button
+                onClick={() => setPlanChangeCompany(null)}
+                className="font-bold text-base text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-slate-600">
+              Modifying the active subscription tier updates cryptographic entitlements, adjusts employee capacity limits, and records an immutable audit record.
+            </p>
+
+            <form onSubmit={handlePlanChange} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Target Subscription Tier *</label>
+                  <select
+                    value={targetPlanCode}
+                    onChange={(e) => setTargetPlanCode(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 text-xs rounded focus:outline-none focus:border-blue-600 font-semibold"
+                  >
+                    <option value="STARTER">STARTER (Basic Operations)</option>
+                    <option value="GROWTH">GROWTH (Full HR &amp; Payroll)</option>
+                    <option value="ENTERPRISE">ENTERPRISE (ATS, Multi-Branch, Priority)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Billing Interval *</label>
+                  <select
+                    value={targetInterval}
+                    onChange={(e) => setTargetInterval(e.target.value as any)}
+                    className="w-full px-3 py-1.5 border border-slate-300 text-xs rounded focus:outline-none focus:border-blue-600"
+                  >
+                    <option value="MONTHLY">Monthly</option>
+                    <option value="ANNUAL">Annual</option>
+                    <option value="LIFETIME">Lifetime</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Plan Diff Comparison */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
+                <div className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                  Tier Comparison &amp; Impact Diff
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-2.5 bg-white border border-slate-200 rounded">
+                    <div className="font-bold text-slate-500 mb-1">Current Tier:</div>
+                    <div className="font-bold text-slate-900 text-sm">{planChangeCompany.subscription?.planCode || 'STARTER'}</div>
+                    <div className="text-[11px] text-slate-600 mt-1">
+                      Max Employees: {planChangeCompany.subscription?.planCode === 'ENTERPRISE' ? 'Unlimited' : planChangeCompany.subscription?.planCode === 'GROWTH' ? '250' : '50'}
+                    </div>
+                    <div className="text-[11px] text-slate-600">Biometric Devices: 1 Terminal</div>
+                  </div>
+
+                  <div className="p-2.5 bg-blue-50/50 border border-blue-200 rounded">
+                    <div className="font-bold text-blue-600 mb-1">Target Tier:</div>
+                    <div className="font-bold text-blue-950 text-sm">{targetPlanCode}</div>
+                    <div className="text-[11px] text-blue-900 mt-1 font-semibold">
+                      Max Employees: {targetPlanCode === 'ENTERPRISE' ? 'Unlimited (100k)' : targetPlanCode === 'GROWTH' ? '250' : '50'}
+                    </div>
+                    <div className="text-[11px] text-blue-900">Biometric Devices: 1 Terminal (Global limit)</div>
+                  </div>
+                </div>
+
+                <div className="text-[11px] space-y-1">
+                  <div className="font-semibold text-slate-700">Feature Access In Target Tier:</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {targetPlanCode === 'STARTER' && (
+                      <>
+                        <span className="px-2 py-0.5 bg-slate-200 text-slate-800 rounded text-[10px]">Dashboard</span>
+                        <span className="px-2 py-0.5 bg-slate-200 text-slate-800 rounded text-[10px]">Employees Directory</span>
+                        <span className="px-2 py-0.5 bg-slate-200 text-slate-800 rounded text-[10px]">Attendance &amp; 1 Device</span>
+                        <span className="px-2 py-0.5 bg-slate-200 text-slate-800 rounded text-[10px]">Statutory Payroll</span>
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px]">Designer Locked</span>
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px]">ATS Locked</span>
+                      </>
+                    )}
+                    {targetPlanCode === 'GROWTH' && (
+                      <>
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px]">All Starter Features</span>
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-semibold">+ Custom Payslip Designer</span>
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-semibold">+ HR Certificates</span>
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-semibold">+ Inventory &amp; Assets</span>
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-semibold">+ Performance Appraisals</span>
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px]">ATS Locked</span>
+                      </>
+                    )}
+                    {targetPlanCode === 'ENTERPRISE' && (
+                      <>
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px]">All Growth Features</span>
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-[10px] font-semibold">+ Recruitment &amp; ATS</span>
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-[10px] font-semibold">+ 360 OKR Reviews</span>
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-[10px] font-semibold">+ Multi-Branch</span>
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-[10px] font-semibold">+ Priority Support</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Reason / Authorization Note *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Upgraded to Growth tier after invoice INV-2026-004 paid"
+                  value={planChangeReason}
+                  onChange={(e) => setPlanChangeReason(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-slate-300 text-xs rounded focus:outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <div className="pt-3 border-t flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setPlanChangeCompany(null)}
+                  className="px-4 py-1.5 border border-slate-300 text-slate-700 rounded hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPlan}
+                  className="px-4 py-1.5 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isChangingPlan ? 'Updating Plan...' : 'Apply Plan Change'}
                 </button>
               </div>
             </form>

@@ -47,16 +47,23 @@ export const PayslipTemplateModule: React.FC<Props> = ({
   const [showBankDetails, setShowBankDetails] = useState(template.showBankDetails ?? true);
   const [notification, setNotification] = useState<string | null>(null);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      const dataUrl = uploadEvent.target?.result as string;
+    try {
+      const { optimizeImageUpload } = await import('../utils/image-helpers');
+      const dataUrl = await optimizeImageUpload(file);
       setLogoUrl(dataUrl);
       setShowLogo(true);
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const dataUrl = uploadEvent.target?.result as string;
+        setLogoUrl(dataUrl);
+        setShowLogo(true);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSaveTemplate = (e: React.FormEvent) => {

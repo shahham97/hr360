@@ -46,7 +46,21 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { fullName, companyName, workEmail, phone, whatsapp, selectedTier, selectedPackage } = body;
+    const { fullName, companyName, workEmail, phone, whatsapp, selectedTier, selectedPackage, hp_trap, websiteUrl, renderTime, turnstileToken } = body;
+
+    // Zero-Cost Bot Mitigation
+    const { verifyHumanSubmission } = await import('@/lib/bot-protection');
+    const botCheck = await verifyHumanSubmission({
+      honeypot: hp_trap || websiteUrl,
+      formRenderTimestamp: renderTime,
+      turnstileToken,
+      clientIp: req.headers.get('x-forwarded-for') || undefined,
+    });
+
+    if (botCheck.isBot) {
+      // Discard bot submission safely
+      return apiSuccess({ message: 'Inquiry received.' }, requestId);
+    }
 
     if (!fullName || !companyName || !phone) {
       return apiError('BAD_REQUEST', 'Full Name, Company Name, and Phone Number are required.', 400, undefined, requestId);

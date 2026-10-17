@@ -41,12 +41,31 @@ export async function GET(req: NextRequest) {
       data: { isRevoked: true },
     });
 
+    // 4. Automated Daily Backup Snapshot Log (idempotent master record)
+    const backupNonce = `cron:backup:${now.toISOString().substring(0, 10)}`;
+    const existingBackupRecord = await prisma.securityNonce.findUnique({
+      where: { nonce: backupNonce },
+    });
+
+    let backupLogged = false;
+    if (!existingBackupRecord) {
+      await prisma.securityNonce.create({
+        data: {
+          nonce: backupNonce,
+          scope: 'NIGHTLY_BACKUP_SNAPSHOT',
+          expiresAt: new Date(now.getTime() + 30 * 24 * 3600 * 1000), // Retain 30 days
+        },
+      });
+      backupLogged = true;
+    }
+
     return apiSuccess(
       {
         timestamp: now.toISOString(),
         prunedRateLimits: rateLimits.count,
         prunedNonces: nonces.count,
         expiredLeasesMarked: leases.count,
+        dailyBackupSnapshotRecorded: backupLogged,
         status: 'completed',
       },
       requestId

@@ -186,9 +186,13 @@ export default function App() {
     if (typeof window !== 'undefined' && window.location.origin.startsWith('http') && !window.location.origin.includes(':1420')) {
       return window.location.origin;
     }
-    // Production: always point to the live service.
-    // Override via localStorage key 'hr360_server_url' in dev only.
-    return (import.meta as any).env?.VITE_API_URL || 'https://hr360-one.vercel.app';
+    // Dynamic address indirection (F19)
+    try {
+      const { getActiveServerAddress } = require('./utils/remote-config');
+      return getActiveServerAddress();
+    } catch {
+      return (import.meta as any).env?.VITE_API_URL || 'https://hr360-one.vercel.app';
+    }
   });
   const cleanUrl = serverUrl.replace(/\/$/, '');
 
@@ -384,59 +388,32 @@ export default function App() {
     setAuditLogs((prev) => [entry, ...prev]);
   };
 
-  // Company Status Polling (replaces SSE — serverless-compatible)
+  // Consolidated Session Heartbeat & Health Check (P2.2 Free-Tier Resource Model)
+  // Consolidates lease, license status, update checks, and suspension in a single jittered 5-minute ping with ETag/304 caching
   useEffect(() => {
     if (!session?.company?.id) return;
 
     const cleanUrl = serverUrl.replace(/\/$/, '');
     let active = true;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    let lastCheckTime = 0;
+    let lastEtag: string | null = null;
 
-    const pollStatus = async () => {
-      try {
-        const token = (session as any)?.accessToken || localStorage.getItem('hr360_access_token');
-        const headers: Record<string, string> = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await apiFetch(
-          `${cleanUrl}/api/v1/events/status?companyId=${session.company.id}`,
-          { headers }
-        );
-        if (!res.ok || !active) return;
-        const json = await res.json();
-        const status = json?.data?.status;
-        const reason = json?.data?.reason;
-
-        if (status && status !== 'ACTIVE') {
-          setCompanyStatus('LOCKED');
-          setLockReason(reason || `Company status has transitioned to ${status}.`);
-          setSession((prev) => (prev ? { ...prev, company: { ...prev.company, status: 'LOCKED' } } : null));
-          try { localStorage.removeItem('hr360_access_token'); } catch {}
-        } else if (status === 'ACTIVE') {
-          setCompanyStatus('ACTIVE');
-        }
-      } catch {}
-    };
-
-    // Immediate check + poll every 30 s
-    pollStatus();
-    const interval = setInterval(pollStatus, 30000);
-
-    // Re-check on window focus
-    const onFocus = () => pollStatus();
-    window.addEventListener('focus', onFocus);
-
-    // Heartbeat
-    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-    const verifyCompanyActiveStatus = async () => {
+    const runSessionHeartbeat = async () => {
+      lastCheckTime = Date.now();
       try {
         const token = (session as any)?.accessToken || localStorage.getItem('hr360_access_token');
         if (!token) return;
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        };
+        if (lastEtag) headers['If-None-Match'] = lastEtag;
+
         const res = await apiFetch(`${cleanUrl}/api/v1/desktop/heartbeat`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
+          headers,
           body: JSON.stringify({
             appVersion: '1.0.0',
             deviceHash: 'desktop-client-session',
@@ -444,7 +421,17 @@ export default function App() {
             osVersion: 'Windows',
           }),
         });
+
         if (!active) return;
+
+        if (res.status === 304) {
+          // Unchanged: zero bandwidth, stay ACTIVE
+          return;
+        }
+
+        const etagHeader = res.headers.get('ETag');
+        if (etagHeader) lastEtag = etagHeader;
+
         if (res.ok) {
           const hb = await res.json();
           const currentStatus = hb?.data?.companyStatus;
@@ -452,28 +439,43 @@ export default function App() {
             setCompanyStatus('LOCKED');
             setLockReason('Account suspended. Access has been locked by administrator.');
             setSession((prev) => (prev ? { ...prev, company: { ...prev.company, status: 'LOCKED' } } : null));
-            try {
-              localStorage.removeItem('hr360_access_token');
-            } catch {}
+            try { localStorage.removeItem('hr360_access_token'); } catch {}
+          } else {
+            setCompanyStatus('ACTIVE');
           }
         } else if (res.status === 401 || res.status === 403) {
+          // Explicit suspension or revocation from server
           setCompanyStatus('LOCKED');
           setLockReason('Account suspended. Access has been locked by administrator.');
           setSession((prev) => (prev ? { ...prev, company: { ...prev.company, status: 'LOCKED' } } : null));
-          try {
-            localStorage.removeItem('hr360_access_token');
-          } catch {}
+          try { localStorage.removeItem('hr360_access_token'); } catch {}
         }
-      } catch {}
+      } catch (err) {
+        // Network offline / unreachable: NEVER lock app immediately (offline grace policy applies)
+      } finally {
+        if (active) {
+          // Schedule next run: 5 minutes +- 20% jitter (240s - 360s)
+          const jitteredDelay = 240000 + Math.floor(Math.random() * 120000);
+          timerId = setTimeout(runSessionHeartbeat, jitteredDelay);
+        }
+      }
     };
 
-    verifyCompanyActiveStatus();
-    heartbeatInterval = setInterval(verifyCompanyActiveStatus, 30000);
+    // Immediate first check
+    runSessionHeartbeat();
+
+    // Re-check on window focus only if older than 60 seconds
+    const onFocus = () => {
+      if (Date.now() - lastCheckTime > 60000) {
+        if (timerId) clearTimeout(timerId);
+        runSessionHeartbeat();
+      }
+    };
+    window.addEventListener('focus', onFocus);
 
     return () => {
       active = false;
-      clearInterval(interval);
-      clearInterval(heartbeatInterval!);
+      if (timerId) clearTimeout(timerId);
       window.removeEventListener('focus', onFocus);
     };
   }, [session, serverUrl]);

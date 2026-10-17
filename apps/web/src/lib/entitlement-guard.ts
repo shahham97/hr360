@@ -215,3 +215,55 @@ export async function verifyTenantEntitlement(
 
   return { allowed: true, entitlement };
 }
+
+/**
+ * Server-side feature gate guard using the central Feature Catalog
+ */
+export async function requireFeature(
+  companyId: string,
+  featureKey: import('@hr360/schema').FeatureKey
+): Promise<{
+  allowed: boolean;
+  reason?: string;
+  statusCode?: number;
+  entitlement?: SignedEntitlement;
+  feature?: (typeof import('@hr360/schema').FEATURE_CATALOG)[import('@hr360/schema').FeatureKey];
+}> {
+  const { isFeatureAllowedForPlan, FEATURE_CATALOG } = await import('@hr360/schema');
+  const { entitlement } = await issueSignedEntitlement(companyId);
+
+  if (entitlement.status !== 'ACTIVE') {
+    return {
+      allowed: false,
+      reason: `Company account status is ${entitlement.status}. Please contact support or billing.`,
+      statusCode: 403,
+      entitlement,
+    };
+  }
+
+  const now = new Date();
+  const graceDate = new Date(entitlement.graceUntil);
+  if (now > graceDate) {
+    return {
+      allowed: false,
+      reason: 'Subscription has expired and grace period ended. Please renew to continue.',
+      statusCode: 402,
+      entitlement,
+    };
+  }
+
+  const allowed = isFeatureAllowedForPlan(entitlement.planCode, featureKey);
+  const meta = FEATURE_CATALOG[featureKey];
+
+  if (!allowed) {
+    return {
+      allowed: false,
+      reason: `Feature '${meta ? meta.name : featureKey}' requires an upgrade to ${meta ? meta.minPlan : 'a higher'} plan. Current plan is ${entitlement.planCode}.`,
+      statusCode: 403,
+      entitlement,
+      feature: meta,
+    };
+  }
+
+  return { allowed: true, entitlement, feature: meta };
+}

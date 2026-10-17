@@ -45,6 +45,18 @@ export function scrubSensitiveString(input: string): string {
     '[REDACTED_KEY]'
   );
 
+  // 5. Redact CNIC numbers (35201-1234567-1 or unformatted)
+  sanitized = sanitized.replace(
+    /\b\d{5}[-\s]?\d{7}[-\s]?\d{1}\b/g,
+    '[REDACTED_CNIC]'
+  );
+
+  // 6. Redact Bank IBANs
+  sanitized = sanitized.replace(
+    /\bPK\d{2}[A-Za-z]{4}\d{16}\b/gi,
+    '[REDACTED_IBAN]'
+  );
+
   return sanitized;
 }
 
@@ -66,7 +78,11 @@ export function scrubObject<T = any>(obj: T): T {
       lowerKey.includes('encryptedconnection') ||
       lowerKey.includes('rawdek') ||
       lowerKey.includes('totpsecret') ||
-      lowerKey.includes('masterkey')
+      lowerKey.includes('masterkey') ||
+      lowerKey.includes('nationalid') ||
+      lowerKey.includes('cnic') ||
+      lowerKey.includes('bankaccount') ||
+      lowerKey.includes('iban')
     ) {
       copy[k] = '[REDACTED]';
     } else {
@@ -75,4 +91,38 @@ export function scrubObject<T = any>(obj: T): T {
   }
 
   return copy as T;
+}
+
+/**
+ * Sentry-compatible event sanitizer hook for zero-leakage crash reporting
+ */
+export function sentryScrubberBeforeSend(event: any): any {
+  if (!event) return event;
+
+  if (event.request?.headers) {
+    if (event.request.headers['authorization']) {
+      event.request.headers['authorization'] = '[REDACTED_TOKEN]';
+    }
+    if (event.request.headers['cookie']) {
+      event.request.headers['cookie'] = '[REDACTED_COOKIE]';
+    }
+  }
+
+  if (event.message) {
+    event.message = scrubSensitiveString(event.message);
+  }
+
+  if (event.breadcrumbs && Array.isArray(event.breadcrumbs)) {
+    event.breadcrumbs = event.breadcrumbs.map((b: any) => ({
+      ...b,
+      message: b.message ? scrubSensitiveString(b.message) : b.message,
+      data: b.data ? scrubObject(b.data) : b.data,
+    }));
+  }
+
+  if (event.extra) {
+    event.extra = scrubObject(event.extra);
+  }
+
+  return event;
 }

@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint:release": "node scripts/release-lint.js",
+    "build:installer": "tsc && vite build && electron-builder --win --x64 --config electron-builder.json",
     "package:win": "tsc && vite build && electron-packager . HR360 --platform=win32 --arch=x64 --out=release-builds --overwrite --icon=public/icon.ico --prune=false --ignore=\"^(src|src-tauri|node_modules|tsconfig|vite\\.config)\""
   },
   "dependencies": {

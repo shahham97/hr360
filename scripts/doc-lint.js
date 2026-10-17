@@ -33,7 +33,14 @@ function scanDirectory(dir) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       findings = findings.concat(scanDirectory(fullPath));
-    } else if (entry.isFile() && /\.(md|txt|html)$/i.test(entry.name)) {
+    } else if (
+      entry.isFile() &&
+      (/\.(md|txt|html)$/i.test(entry.name) ||
+        (/\.tsx$/i.test(entry.name) &&
+          (fullPath.includes('apps\\web\\src\\app') || fullPath.includes('apps/web/src/app')) &&
+          !fullPath.includes('admin') &&
+          !fullPath.includes('api')))
+    ) {
       // Don't scan internal audit files in docs/internal or legal third-party notices
       const relPath = path.relative(ROOT_DIR, fullPath).replace(/\\/g, '/');
       if (relPath.startsWith('docs/internal/') || relPath.endsWith('THIRD-PARTY-NOTICES.txt')) continue;

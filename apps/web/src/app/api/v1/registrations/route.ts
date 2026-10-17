@@ -13,6 +13,20 @@ export async function POST(req: NextRequest) {
     const json = await req.json();
     const parsed = CompanyRegistrationRequestSchema.safeParse(json);
 
+    // Zero-cost bot mitigation
+    const { verifyHumanSubmission } = await import('@/lib/bot-protection');
+    const rawBody = json as any;
+    const botCheck = await verifyHumanSubmission({
+      honeypot: rawBody.hp_trap || rawBody.websiteUrl,
+      formRenderTimestamp: rawBody.renderTime,
+      turnstileToken: rawBody.turnstileToken,
+      clientIp: req.headers.get('x-forwarded-for') || undefined,
+    });
+
+    if (botCheck.isBot) {
+      return apiSuccess({ message: 'Registration application submitted for review.' }, requestId);
+    }
+
     if (!parsed.success) {
       return apiError(
         'BAD_REQUEST',

@@ -1,10 +1,10 @@
 export const runtime = 'nodejs';
 // @ROUTE_EXEMPT: DESKTOP_DEVICE_HEARTBEAT - Workstation telemetry and device binding check
 import { NextRequest } from 'next/server';
+import crypto from 'node:crypto';
 import { DesktopHeartbeatRequestSchema } from '@hr360/schema';
 import { getMasterPrismaClient } from '@hr360/db-master';
 import { apiError, apiSuccess, createRequestId } from '@/lib/api-response';
-
 import { authenticateTenant } from '@/lib/auth-service';
 
 export async function POST(req: NextRequest) {
@@ -28,65 +28,90 @@ export async function POST(req: NextRequest) {
     const { appVersion, deviceHash, deviceName, osVersion } = parsed.data;
     const prisma = getMasterPrismaClient();
 
-    // 1. Fetch Tenant Status
-    const tenant = await prisma.tenant.findUnique({
-      where: { companyId },
+    // 1. Fetch Tenant and Active Subscription
+    const now = new Date();
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        tenant: true,
+        subscriptions: {
+          where: { expiresAt: { gt: now } },
+          include: { plan: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
     });
 
-    if (!tenant) {
-      return apiError('NOT_FOUND', 'Tenant organization record not found.', 404, undefined, requestId);
+    if (!company) {
+      return apiError('NOT_FOUND', 'Company organization record not found.', 404, undefined, requestId);
     }
 
-    // 2. Register or update device install
-    const device = await prisma.deviceInstall.upsert({
-      where: {
-        companyId_deviceHash: { companyId, deviceHash },
-      },
-      update: {
-        appVersion,
-        deviceName,
-        osVersion,
-        lastSeenAt: new Date(),
-      },
-      create: {
-        companyId,
-        deviceHash,
-        appVersion,
-        deviceName,
-        osVersion,
-        isRevoked: false,
-      },
-    });
+    const tenant = company.tenant;
+    const activeSub = company.subscriptions[0];
+    const companyStatus = company.status === 'SUSPENDED' ? 'SUSPENDED' : (tenant?.status || company.status);
 
-    // 3. Log Heartbeat
-    await prisma.heartbeat.create({
-      data: {
-        companyId,
-        deviceId: device.id,
-        appVersion,
-        ipAddress: req.headers.get('x-forwarded-for') || '10.14.0.1',
-      },
-    });
-
-    // 4. Check for latest release & mandatory update
+    // 2. Fetch Latest Stable Release
     const latestRelease = await prisma.release.findFirst({
       where: { channel: 'stable' },
       orderBy: { createdAt: 'desc' },
     });
 
     const isMandatory = latestRelease?.isMandatory || false;
+    const offlineGraceDays = activeSub?.graceDays || 3;
+    const planTier = activeSub?.plan?.code || 'STARTER';
 
-    return apiSuccess(
+    // 3. ETag check for bandwidth efficiency (P2.2)
+    const etagData = `${companyId}:${companyStatus}:${planTier}:${latestRelease?.version || '1.0.0'}:${company.updatedAt.getTime()}`;
+    const etag = `"${crypto.createHash('md5').update(etagData).digest('hex')}"`;
+
+    if (req.headers.get('if-none-match') === etag) {
+      return new Response(null, {
+        status: 304,
+        headers: {
+          ETag: etag,
+          'x-request-id': requestId,
+        },
+      });
+    }
+
+    // 4. Update Device Install heartbeat timestamp (bounded without creating unbounded log rows)
+    const device = await prisma.deviceInstall.upsert({
+      where: {
+        companyId_deviceHash: { companyId, deviceHash },
+      },
+      update: {
+        appVersion,
+        deviceName: deviceName || undefined,
+        osVersion: osVersion || undefined,
+        lastSeenAt: new Date(),
+      },
+      create: {
+        companyId,
+        deviceHash,
+        appVersion,
+        deviceName: deviceName || 'Windows Client',
+        osVersion: osVersion || 'Windows',
+        isRevoked: false,
+      },
+    });
+
+    const response = apiSuccess(
       {
-        companyStatus: tenant.status,
+        companyStatus,
         isRevoked: device.isRevoked,
+        planTier,
+        offlineGraceDays,
         serverTime: new Date().toISOString(),
         latestVersion: latestRelease?.version || '1.0.0',
         mandatoryUpdate: isMandatory,
       },
       requestId
     );
+
+    response.headers.set('ETag', etag);
+    return response;
   } catch (err: any) {
-    return apiError('INTERNAL_ERROR', err.message, 500, undefined, requestId);
+    return apiError('INTERNAL_ERROR', err.message || 'Heartbeat failed.', 500, undefined, requestId);
   }
 }

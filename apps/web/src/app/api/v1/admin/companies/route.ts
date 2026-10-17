@@ -231,6 +231,97 @@ export async function PATCH(req: NextRequest) {
       return apiSuccess({ message: `Password for ${targetUser.email} (${company.name}) has been securely updated.` }, requestId);
     }
 
+    if (action === 'CHANGE_PLAN') {
+      const { planCode, interval = 'MONTHLY', reason = 'Admin initiated plan update' } = json;
+      if (!planCode) {
+        return apiError('BAD_REQUEST', 'Plan code is required.', 400, undefined, requestId);
+      }
+
+      const targetPlan = await prisma.plan.findUnique({
+        where: { code: planCode.toUpperCase() },
+      });
+
+      if (!targetPlan) {
+        return apiError('NOT_FOUND', `Plan '${planCode}' not found in catalog.`, 404, undefined, requestId);
+      }
+
+      // Find current active subscription
+      const currentSub = await prisma.subscription.findFirst({
+        where: { companyId: company.id },
+        orderBy: { createdAt: 'desc' },
+        include: { plan: true },
+      });
+
+      const oldPlanCode = currentSub?.plan?.code || 'STARTER';
+      const now = new Date();
+      let expiresAt: Date;
+      if (interval === 'LIFETIME') {
+        expiresAt = new Date(now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000);
+      } else if (interval === 'ANNUAL') {
+        expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+      } else {
+        expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      }
+
+      // Create new subscription record (immutable history)
+      const newSubscription = await prisma.subscription.create({
+        data: {
+          companyId: company.id,
+          planId: targetPlan.id,
+          interval: interval as any,
+          startsAt: now,
+          expiresAt,
+          graceDays: 14,
+          autoRenew: interval !== 'LIFETIME',
+        },
+        include: { plan: true },
+      });
+
+      // Increment tenant change counter to notify desktop immediately
+      try {
+        await prisma.$executeRaw`
+          INSERT INTO tenant_change_counters (tenant_id, version, updated_at)
+          VALUES (${company.id}, 1, NOW())
+          ON DUPLICATE KEY UPDATE version = version + 1, updated_at = NOW()
+        `;
+      } catch {}
+
+      // Log platform audit
+      await logPlatformAudit({
+        actorId: staffId,
+        actorType: 'STAFF',
+        action: 'COMPANY_PLAN_CHANGED',
+        entityType: 'COMPANY',
+        entityId: company.id,
+        metadata: {
+          companyName: company.name,
+          companySlug: company.slug,
+          oldPlanCode,
+          newPlanCode: targetPlan.code,
+          interval,
+          reason,
+          maxEmployees: targetPlan.maxEmployees,
+        },
+      });
+
+      // Issue fresh signed entitlement
+      const { issueSignedEntitlement } = await import('@/lib/entitlement-guard');
+      const { entitlement, token } = await issueSignedEntitlement(company.id);
+
+      return apiSuccess({
+        message: `Plan for "${company.name}" successfully updated to ${targetPlan.name}.`,
+        subscription: {
+          planCode: targetPlan.code,
+          planName: targetPlan.name,
+          interval: newSubscription.interval,
+          startsAt: newSubscription.startsAt,
+          expiresAt: newSubscription.expiresAt,
+        },
+        entitlement,
+        token,
+      }, requestId);
+    }
+
     return apiError('BAD_REQUEST', `Unknown action "${action}".`, 400, undefined, requestId);
   } catch (err: any) {
     return apiError('INTERNAL_ERROR', err.message, 500, undefined, requestId);

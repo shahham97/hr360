@@ -1,18 +1,44 @@
 import crypto from 'node:crypto';
-import { EnvelopeCrypto } from '@hr360/crypto-audit';
+import { EnvelopeCrypto, type EncryptedPayload } from '@hr360/crypto-audit';
+
+export interface VersionedEnvelopePayload extends EncryptedPayload {
+  kid?: string; // Key ID for versioning and rotation
+  v?: number;   // Envelope format version
+}
 
 /**
  * Key Management Service (KMS) & Database Encryption Key (DEK) Envelope Helper
  *
- * Each company has a unique 256-bit DEK used by its local SQLCipher database.
- * The master server stores DEKs wrapped by the Master Key Encryption Key (KEK).
- * DEKs are never stored in plaintext on disk or in the master database.
+ * Supports key rotation, versioned KEKs (Key Encryption Keys), and non-destructive
+ * DEK re-wrapping without requiring tenant database re-encryption.
  */
 export class KmsEnvelopeService {
-  private crypto: EnvelopeCrypto;
+  private keyRing: Map<string, string>;
+  private activeKeyId: string;
 
-  constructor(masterKek?: string) {
-    this.crypto = new EnvelopeCrypto(masterKek);
+  constructor(masterKek?: string, activeKeyId: string = 'kek-2026-v1') {
+    this.keyRing = new Map();
+    this.activeKeyId = activeKeyId;
+
+    const primaryKey = masterKek || process.env.MASTER_ENCRYPTION_KEY || 'default-kek-32-chars-long-secure!';
+    this.keyRing.set(activeKeyId, primaryKey);
+
+    // Load any secondary/retired historical keys from environment for graceful rotation
+    if (process.env.PREVIOUS_ENCRYPTION_KEYS) {
+      try {
+        const parsed = JSON.parse(process.env.PREVIOUS_ENCRYPTION_KEYS);
+        for (const [k, v] of Object.entries(parsed)) {
+          this.keyRing.set(k, v as string);
+        }
+      } catch {}
+    }
+  }
+
+  /**
+   * Registers an additional KEK into the keyring (e.g. for escrow or rotation)
+   */
+  public registerKey(keyId: string, kek: string): void {
+    this.keyRing.set(keyId, kek);
   }
 
   /**
@@ -23,18 +49,53 @@ export class KmsEnvelopeService {
   }
 
   /**
-   * Wraps a raw DEK with the master KEK using AES-256-GCM
+   * Wraps a raw DEK with the active master KEK using AES-256-GCM and attaches keyId metadata
    */
-  public wrapDek(rawDek: string): string {
-    const encrypted = this.crypto.encrypt(rawDek);
-    return this.crypto.serialize(encrypted);
+  public wrapDek(rawDek: string, keyId?: string): string {
+    const targetKid = keyId || this.activeKeyId;
+    const kek = this.keyRing.get(targetKid) || this.keyRing.get(this.activeKeyId)!;
+    const engine = new EnvelopeCrypto(kek);
+
+    const encrypted = engine.encrypt(rawDek);
+    const versioned: VersionedEnvelopePayload = {
+      ...encrypted,
+      kid: targetKid,
+      v: 2,
+    };
+
+    return JSON.stringify(versioned);
   }
 
   /**
-   * Unwraps a wrapped DEK using the master KEK
+   * Unwraps a wrapped DEK, automatically selecting the correct KEK based on envelope keyId
    */
   public unwrapDek(wrappedDekJson: string): string {
-    return this.crypto.deserializeAndDecrypt(wrappedDekJson);
+    const parsed = JSON.parse(wrappedDekJson);
+    const kid = parsed.kid || this.activeKeyId;
+    const kek = this.keyRing.get(kid);
+
+    if (!kek) {
+      // Fallback to active key if legacy unversioned envelope
+      const fallbackKek = this.keyRing.get(this.activeKeyId)!;
+      const engine = new EnvelopeCrypto(fallbackKek);
+      return engine.deserializeAndDecrypt(wrappedDekJson);
+    }
+
+    const engine = new EnvelopeCrypto(kek);
+    return engine.decrypt({
+      ciphertext: parsed.ciphertext,
+      iv: parsed.iv,
+      authTag: parsed.authTag,
+      version: parsed.version || parsed.v || 1,
+    });
+  }
+
+  /**
+   * Re-wraps a DEK under a new KEK version without touching customer database records
+   */
+  public rewrapDek(wrappedDekJson: string, targetKeyId: string): string {
+    const rawDek = this.unwrapDek(wrappedDekJson);
+    return this.wrapDek(rawDek, targetKeyId);
   }
 
   /**

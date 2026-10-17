@@ -32,7 +32,7 @@ for (const file of routeFiles) {
   const relPath = path.relative(path.resolve(__dirname, '../../..'), file).replace(/\\/g, '/');
   const content = fs.readFileSync(file, 'utf8');
 
-  const isGuarded = content.includes('verifyTenantEntitlement');
+  const isGuarded = content.includes('verifyTenantEntitlement') || content.includes('requireFeature');
   const isExempt = content.includes('// @ROUTE_EXEMPT:');
 
   if (isGuarded) {

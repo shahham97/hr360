@@ -167,3 +167,4 @@ export type TenantRole = z.infer<typeof TenantRoleSchema>;
 
 export * from './portal.js';
 export * from './modules.js';
+export * from './features.js';
