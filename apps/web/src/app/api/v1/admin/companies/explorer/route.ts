@@ -1,4 +1,5 @@
 export const runtime = 'nodejs';
+// @ROUTE_EXEMPT: PLATFORM_ADMIN_EXPLORER - Support database explorer for authorized platform staff
 import { NextRequest } from 'next/server';
 import crypto from 'node:crypto';
 import { getMasterPrismaClient } from '@hr360/db-master';
