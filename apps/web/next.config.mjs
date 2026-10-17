@@ -17,12 +17,6 @@ const nextConfig = {
     '@hr360/local-core',
   ],
   outputFileTracingRoot: path.join(__dirname, '../../'),
-  outputFileTracingIncludes: {
-    '/api/**/*': [
-      '../../node_modules/.pnpm/@node-rs+argon2*/**/*',
-      './node_modules/@node-rs/**/*',
-    ],
-  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('@node-rs/argon2', 'better-sqlite3-multiple-ciphers', '@hr360/local-core');

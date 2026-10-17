@@ -1,7 +1,6 @@
 {
   "framework": "nextjs",
   "buildCommand": "pnpm run build:vercel",
-  "outputDirectory": "apps/web/.next",
   "crons": [
     {
       "path": "/api/v1/cron/daily",
