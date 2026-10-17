@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getMasterPrismaClient } from '@hr360/db-master';
-import { DatabaseConnection, DatabaseMigrator } from '@hr360/local-core';
 import { SqliteTenantServices, MysqlTenantServices } from '@hr360/tenant-services';
 import { TenantClusterManager } from './tenant-cluster-manager';
 
@@ -51,7 +50,8 @@ export class StorageModeMigrator {
     }
 
     const dek = company.encryptedDek ? this.clusterMgr.decryptConnectionString(company.encryptedDek) : 'default-key';
-    const sqliteConn = new DatabaseConnection({ dbPath, encryptionKey: dek });
+    const localCore = require('@hr360/local-core');
+    const sqliteConn = new localCore.DatabaseConnection({ dbPath, encryptionKey: dek });
     const sqliteServices = new SqliteTenantServices(sqliteConn);
 
     // 3. Connect to target cloud cluster
@@ -154,8 +154,9 @@ export class StorageModeMigrator {
     const cloudServices = new MysqlTenantServices(cloudPool);
 
     // Initialize target SQLite database
-    const sqliteConn = new DatabaseConnection({ dbPath: targetDbPath, encryptionKey });
-    const migrator = new DatabaseMigrator(sqliteConn);
+    const localCore = require('@hr360/local-core');
+    const sqliteConn = new localCore.DatabaseConnection({ dbPath: targetDbPath, encryptionKey });
+    const migrator = new localCore.DatabaseMigrator(sqliteConn);
     migrator.migrate({ companyId, appVersion: '1.0.0' });
     const sqliteServices = new SqliteTenantServices(sqliteConn);
 

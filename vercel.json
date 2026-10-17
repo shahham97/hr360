@@ -1,0 +1,11 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "pnpm --filter @hr360/db-master exec prisma generate && pnpm --filter @hr360/crypto-audit run build && pnpm --filter @hr360/tenancy run build && pnpm --filter @hr360/web run build",
+  "outputDirectory": "apps/web/.next",
+  "crons": [
+    {
+      "path": "/api/v1/cron/daily",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

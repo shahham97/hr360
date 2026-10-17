@@ -1,7 +1,6 @@
 import mysql from 'mysql2/promise';
 import { getMasterPrismaClient } from '@hr360/db-master';
 import { ITenantServices, MysqlTenantServices, SqliteTenantServices } from '@hr360/tenant-services';
-import { DatabaseConnection } from '@hr360/local-core';
 import { KmsEnvelopeService } from './kms-envelope';
 import { TenantClusterManager } from './tenant-cluster-manager';
 
@@ -22,7 +21,7 @@ interface PoolEntry {
 class TenantRuntimeResolver {
   private static instance: TenantRuntimeResolver;
   private readonly clusterPools = new Map<string, PoolEntry>();
-  private readonly localAdapters = new Map<string, { conn: DatabaseConnection; services: ITenantServices }>();
+  private readonly localAdapters = new Map<string, { conn: any; services: ITenantServices }>();
   private readonly kms: KmsEnvelopeService;
   private readonly clusterMgr: TenantClusterManager;
   private readonly MAX_POOLS = 200;
@@ -137,11 +136,18 @@ class TenantRuntimeResolver {
     const existing = this.localAdapters.get(companyId);
     if (existing) return existing.services;
 
+    let localCore: any;
+    try {
+      localCore = require('@hr360/local-core');
+    } catch {
+      throw new Error('Local SQLite storage mode is only available on desktop client workstations.');
+    }
+
     const dek = encryptedDek ? this.kms.unwrapDek(encryptedDek) : 'default-local-fallback-key-32chars!';
     const path = require('node:path');
     const dbPath = path.resolve(process.cwd(), `userData/databases/${companyId}.db`);
 
-    const conn = new DatabaseConnection({
+    const conn = new localCore.DatabaseConnection({
       dbPath,
       encryptionKey: dek,
     });

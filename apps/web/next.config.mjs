@@ -8,7 +8,14 @@ const __dirname = path.dirname(__filename);
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  serverExternalPackages: ['@node-rs/argon2', '@hr360/crypto-audit', '@prisma/client', 'prisma'],
+  serverExternalPackages: [
+    '@node-rs/argon2',
+    '@hr360/crypto-audit',
+    '@prisma/client',
+    'prisma',
+    'better-sqlite3-multiple-ciphers',
+    '@hr360/local-core',
+  ],
   outputFileTracingRoot: path.join(__dirname, '../../'),
   outputFileTracingIncludes: {
     '/api/**/*': [
@@ -18,7 +25,7 @@ const nextConfig = {
   },
   webpack: (config, { isServer }) => {
     if (isServer) {
-      config.externals.push('@node-rs/argon2');
+      config.externals.push('@node-rs/argon2', 'better-sqlite3-multiple-ciphers', '@hr360/local-core');
     }
     return config;
   },

@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     const clientIp = req.headers.get('x-forwarded-for') || '10.14.0.1';
-    const rateCheck = checkRateLimit(`login:${clientIp}:${email}`, 10, 60);
+    const rateCheck = await checkRateLimit(`login:${clientIp}:${email}`, 10, 60);
     if (!rateCheck.success) {
       return apiError(
         'RATE_LIMITED',

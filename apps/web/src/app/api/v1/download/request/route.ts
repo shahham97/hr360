@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     const { fullName, workEmail, companyName } = parsed.data;
     const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '0.0.0.0';
     const { checkRateLimit } = await import('@/lib/rate-limiter');
-    const rateCheck = checkRateLimit(`download:${clientIp}`, 5, 60);
+    const rateCheck = await checkRateLimit(`download:${clientIp}`, 5, 60);
     if (!rateCheck.success) {
       return apiError(
         'RATE_LIMITED',

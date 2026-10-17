@@ -12,18 +12,19 @@
   "dependencies": {
     "@hr360/crypto-audit": "workspace:*",
     "@hr360/db-master": "workspace:*",
-    "@hr360/local-core": "workspace:*",
     "@hr360/schema": "workspace:*",
     "@hr360/tenancy": "workspace:*",
     "@hr360/tenant-services": "workspace:*",
     "@node-rs/argon2": "^2.2.2",
     "clsx": "^2.1.1",
+    "hash-wasm": "^4.12.0",
     "lucide-react": "^1.16.0",
     "mysql2": "^3.24.5",
     "next": "^15.2.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.0.2"
+    "tailwind-merge": "^3.0.2",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.9",

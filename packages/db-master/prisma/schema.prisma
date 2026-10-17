@@ -148,6 +148,7 @@ model Company {
   usageSnapshots     UsageSnapshot[]
   restoreCommands    RestoreCommand[]
   securityEvents     SecurityEvent[]
+  changeCounters     TenantChangeCounter[]
 
   @@map("companies")
 }
@@ -156,11 +157,16 @@ model DbProviderAccount {
   id          String   @id @default(uuid())
   label       String   @unique @db.VarChar(128)
   region      String   @db.VarChar(64)
-  capacity    Int      @default(100)
-  notes       String?  @db.Text
-  status      String   @default("ACTIVE") @db.VarChar(32)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  capacity            Int      @default(100)
+  adminUrlEncrypted   String?  @map("admin_url_encrypted") @db.Text
+  storageQuotaBytes   BigInt   @default(5368709120) @map("storage_quota_bytes")
+  currentStorageBytes BigInt   @default(0) @map("current_storage_bytes")
+  monthlyRequestCap   Int      @default(50000000) @map("monthly_request_cap")
+  currentRequests     Int      @default(0) @map("current_requests")
+  notes               String?  @db.Text
+  status              String   @default("ACTIVE") @db.VarChar(32)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   connections TenantDbConnection[]
 
@@ -613,4 +619,50 @@ model SecurityEvent {
   @@index([timestamp])
   @@map("security_events")
 }
+
+model RateLimit {
+  key       String   @id @db.VarChar(128)
+  count     Int      @default(1)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([expiresAt])
+  @@map("rate_limits")
+}
+
+model AccountLockout {
+  identifier     String    @id @db.VarChar(128)
+  failedAttempts Int       @default(1) @map("failed_attempts")
+  lockedUntil    DateTime? @map("locked_until")
+  lastAttemptAt  DateTime  @default(now()) @map("last_attempt_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([lockedUntil])
+  @@map("account_lockouts")
+}
+
+model SecurityNonce {
+  nonce     String   @id @db.VarChar(128)
+  scope     String   @db.VarChar(64)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([scope, expiresAt])
+  @@map("security_nonces")
+}
+
+model TenantChangeCounter {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  scope     String   @db.VarChar(64)
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, scope])
+  @@map("tenant_change_counters")
+}
+
 
