@@ -28,7 +28,7 @@ export default function DownloadPage() {
       const res = await fetch('/api/v1/download/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, workEmail, companyName }),
+        body: JSON.stringify({ fullName, workEmail, companyName, consent: true }),
       });
 
       const data = await res.json();
@@ -88,7 +88,7 @@ export default function DownloadPage() {
               <div className="space-y-1 pt-1">
                 <span className="text-[11px] text-slate-400 font-mono block">SHA-256 Checksum Fingerprint:</span>
                 <div className="font-mono text-[10px] bg-slate-950 px-3 py-2 rounded text-cyan-300 break-all select-all border border-slate-800">
-                  725262a5d8d3fdba8b590cdcaeec7413ce05edbf190bae81b8bf382dc44288d1
+                  b023e85cf65bff6659a4c574622941cb52bdddd74248305747d8191947e5e97d
                 </div>
               </div>
             </div>
