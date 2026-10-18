@@ -1,11 +1,11 @@
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 // @ROUTE_EXEMPT: PLATFORM_ADMIN_EXPLORER - Support database explorer for authorized platform staff
 import { NextRequest } from 'next/server';
 import crypto from 'node:crypto';
 import { getMasterPrismaClient } from '@hr360/db-master';
 import { apiError, apiSuccess, createRequestId } from '@/lib/api-response';
 import { authenticateStaff } from '@/lib/auth-service';
-import { tenantResolver } from '@/lib/tenant-resolver';
 
 // Rate limiter: Max 30 explorer queries per staff per minute
 const staffRateLimitMap = new Map<string, { count: number; windowStart: number }>();
@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Resolve tenant connection (decrypted cluster connection pool or local core)
+    const { tenantResolver } = await import('@/lib/tenant-resolver');
     const tenantCtx = await tenantResolver.resolveTenant(companyId);
 
     // Create Support Session record if none exists for this staff
