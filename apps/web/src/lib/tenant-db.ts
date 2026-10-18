@@ -55,25 +55,45 @@ export async function getTenantConnectionPool(companyId: string): Promise<{
 
   // 1. If company has modern CLOUD_DEDICATED connection
   if (company.tenantConnection && company.tenantConnection.status === 'ACTIVE') {
-    const { TenantClusterManager } = await import('./tenant-cluster-manager');
-    const mgr = new TenantClusterManager();
-    const payload = mgr.decryptConnectionPayload(company.tenantConnection.encryptedConnection);
-    const parsed = mgr.parseUri(payload.connectionString);
+    const { KmsEnvelopeService } = await import('./kms-envelope');
+    const kms = new KmsEnvelopeService();
+    const raw = kms.unwrapDek(company.tenantConnection.encryptedConnection);
+    let connectionString = raw;
+    let caCert: string | undefined;
+    try {
+      const parsedPayload = JSON.parse(raw);
+      if (parsedPayload && typeof parsedPayload.connectionString === 'string') {
+        connectionString = parsedPayload.connectionString;
+        caCert = parsedPayload.caCert;
+      }
+    } catch {}
 
-    const sslConfig = payload.caCert
-      ? { ca: payload.caCert, rejectUnauthorized: true }
-      : parsed.ssl || parsed.port === 4000
+    const trimmed = connectionString.trim();
+    const url = new URL(trimmed);
+    const host = url.hostname;
+    const port = url.port ? parseInt(url.port, 10) : 3306;
+    const database = url.pathname.replace(/^\//, '');
+    const user = decodeURIComponent(url.username);
+    const password = url.password ? decodeURIComponent(url.password) : undefined;
+    const isSsl =
+      url.searchParams.get('ssl') === 'true' ||
+      url.searchParams.get('sslaccept') === 'strict' ||
+      port === 4000;
+
+    const sslConfig = caCert
+      ? { ca: caCert, rejectUnauthorized: true }
+      : isSsl
       ? { rejectUnauthorized: true }
       : undefined;
 
     const cacheKey = `cluster_${company.id}`;
     if (!tenantPools.has(cacheKey)) {
       const pool = mysql.createPool({
-        host: parsed.host,
-        port: parsed.port,
-        user: parsed.user,
-        password: parsed.password,
-        database: parsed.database,
+        host,
+        port,
+        user,
+        password,
+        database,
         ssl: sslConfig,
         waitForConnections: true,
         connectionLimit: 15,
@@ -84,7 +104,7 @@ export async function getTenantConnectionPool(companyId: string): Promise<{
 
     return {
       pool: tenantPools.get(cacheKey)!,
-      databaseName: parsed.database,
+      databaseName: database,
       companySlug: company.slug,
       companyName: company.name,
     };

@@ -2,7 +2,7 @@ import mysql from 'mysql2/promise';
 import crypto from 'node:crypto';
 import dns from 'node:dns/promises';
 import { KmsEnvelopeService } from './kms-envelope';
-import { initMysqlTenantSchema } from '@hr360/tenant-services';
+import { initMysqlTenantSchema } from './tenant-mysql-schema';
 
 export interface ConnectionTestResult {
   ok: boolean;

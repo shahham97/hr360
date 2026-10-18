@@ -73,9 +73,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Resolve tenant connection (decrypted cluster connection pool or local core)
-    const { tenantResolver } = await import('@/lib/tenant-resolver');
-    const tenantCtx = await tenantResolver.resolveTenant(companyId);
+    // Resolve tenant connection directly via getTenantConnectionPool
+    const { getTenantConnectionPool } = await import('@/lib/tenant-db');
+    const { pool, companySlug } = await getTenantConnectionPool(companyId);
 
     // Create Support Session record if none exists for this staff
     const now = new Date();
@@ -102,37 +102,49 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Support Context for ITenantServices queries
-    const actorCtx = {
-      companyId,
-      userId: staffId,
-      role: 'STAFF',
-      isSupportSession: true,
-    };
-
     let resultData: any = null;
 
-    // Read-only query dispatching
+    // Read-only query dispatching directly against tenant database cluster
     if (module === 'employees') {
-      const list = await tenantCtx.services.employee.list(actorCtx);
-      // Mask nationalId and bankAccountNumber by default
-      resultData = list.map((emp: any) => ({
-        ...emp,
-        nationalId: emp.nationalId ? `${emp.nationalId.substring(0, 5)}-*****-*` : 'N/A',
-        bankAccountNumber: emp.bankAccountNumber ? `****${emp.bankAccountNumber.slice(-4)}` : null,
+      const [rows] = await pool.query('SELECT * FROM employees ORDER BY created_at DESC LIMIT 100') as any[];
+      resultData = (rows || []).map((emp: any) => ({
+        id: emp.id,
+        employeeCode: emp.employee_code,
+        firstName: emp.first_name,
+        lastName: emp.last_name,
+        email: emp.email,
+        phone: emp.phone,
+        department: emp.department,
+        designation: emp.designation,
+        branch: emp.branch,
+        employmentType: emp.employment_type,
+        status: emp.status,
+        joiningDate: emp.joining_date,
+        baseSalary: emp.base_salary_minor ? emp.base_salary_minor / 100 : 0,
+        nationalId: emp.national_id ? `${String(emp.national_id).substring(0, 5)}-*****-*` : 'N/A',
+        bankAccountNumber: emp.bank_account_number ? `****${String(emp.bank_account_number).slice(-4)}` : null,
       }));
     } else if (module === 'attendance') {
-      resultData = await tenantCtx.services.attendance.listRecords(actorCtx, undefined, undefined, undefined);
+      const [rows] = await pool.query('SELECT * FROM attendance_records ORDER BY date DESC LIMIT 100') as any[];
+      resultData = rows || [];
     } else if (module === 'payroll') {
-      resultData = await tenantCtx.services.payroll.listRuns(actorCtx);
+      const [rows] = await pool.query('SELECT * FROM payroll_runs ORDER BY created_at DESC LIMIT 50') as any[];
+      resultData = rows || [];
     } else if (module === 'leaves') {
-      resultData = await tenantCtx.services.leave.listRequests(actorCtx);
-    } else if (module === 'certificates') {
-      resultData = await tenantCtx.services.certificate.listCertificates(actorCtx);
+      const [rows] = await pool.query('SELECT * FROM leave_requests ORDER BY created_at DESC LIMIT 100') as any[];
+      resultData = rows || [];
+    } else if (module === 'inventory') {
+      try {
+        const [rows] = await pool.query('SELECT * FROM inventory_items ORDER BY created_at DESC LIMIT 100') as any[];
+        resultData = rows || [];
+      } catch {
+        resultData = [];
+      }
     } else if (module === 'audit') {
-      resultData = await tenantCtx.services.audit.listLogs(actorCtx, { limit: 100 });
+      const [rows] = await pool.query('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100') as any[];
+      resultData = rows || [];
     } else {
-      resultData = { message: 'Module loaded in explorer', storageMode: tenantCtx.storageMode };
+      resultData = { message: 'Module loaded in explorer', companySlug };
     }
 
     // Log the explorer query to SupportAccessLog
@@ -150,7 +162,7 @@ export async function POST(req: NextRequest) {
     return apiSuccess({
       companyId,
       companyName: company.name,
-      storageMode: tenantCtx.storageMode,
+      storageMode: (company as any).storageMode || 'CLOUD_DEDICATED',
       module,
       data: resultData,
       isReadOnly: true,

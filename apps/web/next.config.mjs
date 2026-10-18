@@ -15,13 +15,11 @@ const nextConfig = {
     '@hr360/crypto-audit',
     '@prisma/client',
     'prisma',
-    'better-sqlite3-multiple-ciphers',
-    '@hr360/local-core',
   ],
   outputFileTracingRoot: path.join(__dirname, '../../'),
   webpack: (config, { isServer }) => {
     if (isServer) {
-      config.externals.push('@node-rs/argon2', 'better-sqlite3-multiple-ciphers', '@hr360/local-core');
+      config.externals.push('@node-rs/argon2');
       config.plugins = [...config.plugins, new PrismaPlugin()];
     }
     return config;
