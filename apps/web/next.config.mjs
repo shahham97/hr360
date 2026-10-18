@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import { PrismaPlugin } from '@prisma/nextjs-monorepo-workaround-plugin';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -20,6 +22,7 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('@node-rs/argon2', 'better-sqlite3-multiple-ciphers', '@hr360/local-core');
+      config.plugins = [...config.plugins, new PrismaPlugin()];
     }
     return config;
   },
