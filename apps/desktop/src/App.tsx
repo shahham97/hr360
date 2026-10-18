@@ -21,11 +21,11 @@ import {
   Lock,
   WifiOff,
   RefreshCw,
-  Package
+  Package,
+  Database
 } from 'lucide-react';
 
 import {
-
   Employee,
   AttendanceRecord,
   BiometricDevice,
@@ -72,6 +72,7 @@ import { CertificatesModule } from './modules/CertificatesModule';
 import { PerformanceAndBenefitsModule } from './modules/PerformanceAndBenefitsModule';
 import { RecruitmentModule } from './modules/RecruitmentModule';
 import { InventoryModule } from './modules/InventoryModule';
+import { DatabaseManagementModule } from './modules/DatabaseManagementModule';
 import { SystemAndSecurityModule } from './modules/SystemAndSecurityModule';
 import { ErrorBoundary } from './ErrorBoundary';
 import appIcon from './assets/icon.png';
@@ -211,6 +212,7 @@ export default function App() {
     | 'performance'
     | 'recruitment'
     | 'inventory'
+    | 'database'
     | 'system';
 
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -375,6 +377,54 @@ export default function App() {
   }, [candidates]);
   const [interviews, setInterviews] = useState<InterviewSchedule[]>(() => (session ? [] : INITIAL_INTERVIEWS));
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => (session ? [] : INITIAL_AUDIT_LOGS));
+
+  // Dynamically load company employees from allocated database
+  const loadEmployeesFromApi = async () => {
+    if (!session?.company?.id) return;
+    try {
+      const clean = serverUrl.replace(/\/$/, '');
+      const token = (session as any)?.accessToken || localStorage.getItem('hr360_access_token');
+      const res = await apiFetch(`${clean}/api/v1/employees`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-company-id': session.company.id,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data?.data)) {
+          setEmployees(
+            data.data.map((r: any) => ({
+              id: r.id,
+              employeeCode: r.employeeCode,
+              firstName: r.firstName,
+              lastName: r.lastName,
+              email: r.email,
+              phone: r.phone || '',
+              gender: r.gender || 'OTHER',
+              dateOfBirth: r.dateOfBirth?.slice(0, 10) || '1995-01-01',
+              nationalId: r.nationalId || '********',
+              department: r.department || 'General',
+              designation: r.designation || 'Staff Member',
+              branch: r.branch || 'Main Branch',
+              employmentType: r.employmentType || 'PERMANENT',
+              status: r.status || 'ACTIVE',
+              joiningDate: r.joiningDate?.slice(0, 10) || '2026-01-01',
+              baseSalary: Number(r.baseSalary || 100000),
+              bankName: r.bankName || '',
+              bankAccount: r.bankAccount || '',
+            }))
+          );
+        }
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (session?.company?.id) {
+      loadEmployeesFromApi();
+    }
+  }, [session?.company?.id]);
 
   // Record an immutable audit log entry
   const addAuditLog = (action: string, details: string) => {
@@ -607,7 +657,10 @@ export default function App() {
       // Fetch existing company records from cloud API
       try {
         const empRes = await apiFetch(`${cleanUrl}/api/v1/employees`, {
-          headers: { Authorization: `Bearer ${data.data.accessToken}` },
+          headers: {
+            Authorization: `Bearer ${data.data.accessToken}`,
+            'x-company-id': companyData.id,
+          },
         });
         if (empRes.ok) {
           const empData = await empRes.json();
@@ -622,14 +675,16 @@ export default function App() {
                 phone: r.phone || '',
                 gender: r.gender || 'OTHER',
                 dateOfBirth: r.dateOfBirth?.slice(0, 10) || '1995-01-01',
-                nationalId: '********',
-                department: 'General',
-                designation: 'Staff Member',
-                branch: 'Main Branch',
-                employmentType: 'PERMANENT',
+                nationalId: r.nationalId || '********',
+                department: r.department || 'General',
+                designation: r.designation || 'Staff Member',
+                branch: r.branch || 'Main Branch',
+                employmentType: r.employmentType || 'PERMANENT',
                 status: r.status || 'ACTIVE',
                 joiningDate: r.joiningDate?.slice(0, 10) || '2026-01-01',
-                baseSalary: 100000,
+                baseSalary: Number(r.baseSalary || 100000),
+                bankName: r.bankName || '',
+                bankAccount: r.bankAccount || '',
               }))
             );
           }
@@ -1343,6 +1398,16 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab('database')}
+              className={`w-full flex items-center px-3 py-2.5 text-xs rounded-xl transition-all ${
+                activeTab === 'database' ? 'bg-[#1D68F2] text-white font-semibold shadow-md shadow-blue-900/30' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Database className="w-4 h-4 mr-3 shrink-0" />
+              Database & Storage
+            </button>
+
+            <button
               onClick={() => setActiveTab('system')}
               className={`w-full flex items-center px-3 py-2.5 text-xs rounded-xl transition-all ${
                 activeTab === 'system' ? 'bg-[#1D68F2] text-white font-semibold shadow-md shadow-blue-900/30' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -1449,6 +1514,10 @@ export default function App() {
                 setEmployees={setEmployees}
                 onAudit={addAuditLog}
                 userRole={session?.user?.role}
+                serverUrl={serverUrl}
+                session={session}
+                apiFetch={apiFetch}
+                onRefresh={loadEmployeesFromApi}
               />
             )}
 
@@ -1468,6 +1537,9 @@ export default function App() {
                 setLeaves={setLeaves}
                 employees={employees}
                 onAudit={addAuditLog}
+                serverUrl={serverUrl}
+                session={session}
+                apiFetch={apiFetch}
               />
             )}
 
@@ -1532,6 +1604,18 @@ export default function App() {
             {activeTab === 'inventory' && (
               <InventoryModule
                 employees={employees}
+                onAudit={addAuditLog}
+                serverUrl={serverUrl}
+                session={session}
+                apiFetch={apiFetch}
+              />
+            )}
+
+            {activeTab === 'database' && (
+              <DatabaseManagementModule
+                session={session}
+                serverUrl={serverUrl}
+                apiFetch={apiFetch}
                 onAudit={addAuditLog}
               />
             )}

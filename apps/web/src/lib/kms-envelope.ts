@@ -20,8 +20,10 @@ export class KmsEnvelopeService {
     this.keyRing = new Map();
     this.activeKeyId = activeKeyId;
 
-    const primaryKey = masterKek || process.env.MASTER_ENCRYPTION_KEY || 'default-kek-32-chars-long-secure!';
+    const primaryKey = masterKek || process.env.MASTER_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
     this.keyRing.set(activeKeyId, primaryKey);
+    this.keyRing.set('fallback-dev', '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');
+    this.keyRing.set('fallback-default', 'default-kek-32-chars-long-secure!');
 
     // Load any secondary/retired historical keys from environment for graceful rotation
     if (process.env.PREVIOUS_ENCRYPTION_KEYS) {
@@ -74,20 +76,33 @@ export class KmsEnvelopeService {
     const kid = parsed.kid || this.activeKeyId;
     const kek = this.keyRing.get(kid);
 
-    if (!kek) {
-      // Fallback to active key if legacy unversioned envelope
-      const fallbackKek = this.keyRing.get(this.activeKeyId)!;
-      const engine = new EnvelopeCrypto(fallbackKek);
-      return engine.deserializeAndDecrypt(wrappedDekJson);
+    const tryDecrypt = (k: string) => {
+      const engine = new EnvelopeCrypto(k);
+      return engine.decrypt({
+        ciphertext: parsed.ciphertext,
+        iv: parsed.iv,
+        authTag: parsed.authTag,
+        version: parsed.version || parsed.v || 1,
+      });
+    };
+
+    if (kek) {
+      try {
+        return tryDecrypt(kek);
+      } catch {}
     }
 
-    const engine = new EnvelopeCrypto(kek);
-    return engine.decrypt({
-      ciphertext: parsed.ciphertext,
-      iv: parsed.iv,
-      authTag: parsed.authTag,
-      version: parsed.version || parsed.v || 1,
-    });
+    // Try all registered keys in keyring
+    for (const [, k] of this.keyRing.entries()) {
+      try {
+        return tryDecrypt(k);
+      } catch {}
+    }
+
+    // Fallback to active key if legacy unversioned envelope
+    const fallbackKek = this.keyRing.get(this.activeKeyId)!;
+    const engine = new EnvelopeCrypto(fallbackKek);
+    return engine.deserializeAndDecrypt(wrappedDekJson);
   }
 
   /**

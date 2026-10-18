@@ -15,6 +15,9 @@ import { Employee, InventoryItem } from '../types/hr-types';
 interface InventoryModuleProps {
   employees: Employee[];
   onAudit: (action: string, details: string) => void;
+  serverUrl?: string;
+  session?: { user: any; company: any; accessToken?: string } | null;
+  apiFetch?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
 const INITIAL_INVENTORY: InventoryItem[] = [
@@ -68,7 +71,13 @@ const INITIAL_INVENTORY: InventoryItem[] = [
   },
 ];
 
-export const InventoryModule: React.FC<InventoryModuleProps> = ({ employees, onAudit }) => {
+export const InventoryModule: React.FC<InventoryModuleProps> = ({
+  employees,
+  onAudit,
+  serverUrl,
+  session,
+  apiFetch = fetch,
+}) => {
   const [items, setItems] = useState<InventoryItem[]>(() => {
     try {
       const stored = localStorage.getItem('hr360_inventory_items');
@@ -99,6 +108,27 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ employees, onA
   const [newItemCondition, setNewItemCondition] = useState<InventoryItem['condition']>('NEW');
   const [newItemNotes, setNewItemNotes] = useState('');
 
+  // Fetch items from server on mount or session change
+  useEffect(() => {
+    if (!serverUrl || !session?.company?.id) return;
+    const cleanUrl = serverUrl.replace(/\/$/, '');
+    const token = session.accessToken || localStorage.getItem('hr360_access_token');
+
+    apiFetch(`${cleanUrl}/api/v1/inventory`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-company-id': session.company.id,
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data?.data) && data.data.length > 0) {
+          setItems(data.data);
+        }
+      })
+      .catch(() => {});
+  }, [serverUrl, session]);
+
   // Persist to local storage
   useEffect(() => {
     try {
@@ -111,7 +141,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ employees, onA
     setTimeout(() => setNotice(null), 4000);
   };
 
-  const handleCreateItem = (e: React.FormEvent) => {
+  const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItemName.trim() || !newItemSerial.trim()) {
       showNotification('Please enter the asset name and serial number.', 'error');
@@ -134,21 +164,47 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ employees, onA
       notes: newItemNotes.trim(),
     };
 
-    const updated = [created, ...items];
-    setItems(updated);
-    setShowCreateModal(false);
+    try {
+      if (serverUrl && session?.company?.id) {
+        const cleanUrl = serverUrl.replace(/\/$/, '');
+        const token = session.accessToken || localStorage.getItem('hr360_access_token');
+        const res = await apiFetch(`${cleanUrl}/api/v1/inventory`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'x-company-id': session.company.id,
+          },
+          body: JSON.stringify(created),
+        });
 
-    // Reset Form
-    setNewItemName('');
-    setNewItemSerial('');
-    setNewItemValue(1000);
-    setNewItemNotes('');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error?.message || 'Failed to save asset to allocated database.');
+        }
 
-    onAudit('CREATE_INVENTORY_ITEM', `Created asset ${created.itemCode} (${created.name}) with serial ${created.serialNumber}`);
-    showNotification(`Asset ${created.itemCode} created and stored successfully!`);
+        const saved = data?.data || created;
+        setItems([saved, ...items]);
+      } else {
+        setItems([created, ...items]);
+      }
+
+      setShowCreateModal(false);
+
+      // Reset Form
+      setNewItemName('');
+      setNewItemSerial('');
+      setNewItemValue(1000);
+      setNewItemNotes('');
+
+      onAudit('CREATE_INVENTORY_ITEM', `Created asset ${created.itemCode} (${created.name}) with serial ${created.serialNumber}`);
+      showNotification(`Asset ${created.itemCode} created and stored in allocated database!`);
+    } catch (err: any) {
+      showNotification(err?.message || 'Error saving asset.', 'error');
+    }
   };
 
-  const handleAssignItem = (e: React.FormEvent) => {
+  const handleAssignItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assigningItem || !selectedEmpId) {
       showNotification('Please select an employee to assign this asset.', 'error');
@@ -160,56 +216,97 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ employees, onA
 
     const empName = `${emp.firstName} ${emp.lastName}`.trim();
 
-    const updated = items.map((item) => {
-      if (item.id === assigningItem.id) {
-        return {
-          ...item,
-          status: 'ASSIGNED' as const,
-          assignedEmployeeId: emp.id,
-          assignedEmployeeName: empName,
-          assignedDate: new Date().toISOString().slice(0, 10),
-        };
+    const updatedItem = {
+      ...assigningItem,
+      status: 'ASSIGNED' as const,
+      assignedEmployeeId: emp.id,
+      assignedEmployeeName: empName,
+      assignedDate: new Date().toISOString().slice(0, 10),
+    };
+
+    try {
+      if (serverUrl && session?.company?.id) {
+        const cleanUrl = serverUrl.replace(/\/$/, '');
+        const token = session.accessToken || localStorage.getItem('hr360_access_token');
+        await apiFetch(`${cleanUrl}/api/v1/inventory`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'x-company-id': session.company.id,
+          },
+          body: JSON.stringify(updatedItem),
+        });
       }
-      return item;
-    });
 
-    setItems(updated);
-    setAssigningItem(null);
-    setSelectedEmpId('');
+      setItems(items.map((i) => (i.id === assigningItem.id ? updatedItem : i)));
+      setAssigningItem(null);
+      setSelectedEmpId('');
 
-    onAudit(
-      'ASSIGN_INVENTORY_ITEM',
-      `Assigned asset ${assigningItem.itemCode} (${assigningItem.name}) to employee ${empName} (${emp.employeeCode}).`
-    );
-    showNotification(`Asset ${assigningItem.itemCode} successfully assigned to ${empName}.`);
+      onAudit(
+        'ASSIGN_INVENTORY_ITEM',
+        `Assigned asset ${assigningItem.itemCode} (${assigningItem.name}) to employee ${empName} (${emp.employeeCode}).`
+      );
+      showNotification(`Asset ${assigningItem.itemCode} successfully assigned to ${empName}.`);
+    } catch (err: any) {
+      showNotification(err?.message || 'Failed to assign asset.', 'error');
+    }
   };
 
-  const handleUnassignItem = (item: InventoryItem) => {
+  const handleUnassignItem = async (item: InventoryItem) => {
     const prevHolder = item.assignedEmployeeName || 'Employee';
 
-    const updated = items.map((i) => {
-      if (i.id === item.id) {
-        return {
-          ...i,
-          status: 'AVAILABLE' as const,
-          assignedEmployeeId: undefined,
-          assignedEmployeeName: undefined,
-          assignedDate: undefined,
-        };
-      }
-      return i;
-    });
+    const updatedItem = {
+      ...item,
+      status: 'AVAILABLE' as const,
+      assignedEmployeeId: undefined,
+      assignedEmployeeName: undefined,
+      assignedDate: undefined,
+    };
 
-    setItems(updated);
-    onAudit('UNASSIGN_INVENTORY_ITEM', `Unassigned asset ${item.itemCode} from ${prevHolder}. Returned to available pool.`);
-    showNotification(`Asset ${item.itemCode} returned back to inventory.`);
+    try {
+      if (serverUrl && session?.company?.id) {
+        const cleanUrl = serverUrl.replace(/\/$/, '');
+        const token = session.accessToken || localStorage.getItem('hr360_access_token');
+        await apiFetch(`${cleanUrl}/api/v1/inventory`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'x-company-id': session.company.id,
+          },
+          body: JSON.stringify(updatedItem),
+        });
+      }
+
+      setItems(items.map((i) => (i.id === item.id ? updatedItem : i)));
+      onAudit('UNASSIGN_INVENTORY_ITEM', `Unassigned asset ${item.itemCode} from ${prevHolder}. Returned to available pool.`);
+      showNotification(`Asset ${item.itemCode} returned back to inventory.`);
+    } catch (err: any) {
+      showNotification(err?.message || 'Failed to unassign asset.', 'error');
+    }
   };
 
-  const handleDeleteItem = (itemId: string, itemCode: string) => {
-    const updated = items.filter((i) => i.id !== itemId);
-    setItems(updated);
-    onAudit('DELETE_INVENTORY_ITEM', `Removed asset ${itemCode} from inventory registry.`);
-    showNotification(`Asset ${itemCode} deleted.`);
+  const handleDeleteItem = async (itemId: string, itemCode: string) => {
+    try {
+      if (serverUrl && session?.company?.id) {
+        const cleanUrl = serverUrl.replace(/\/$/, '');
+        const token = session.accessToken || localStorage.getItem('hr360_access_token');
+        await apiFetch(`${cleanUrl}/api/v1/inventory?id=${itemId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'x-company-id': session.company.id,
+          },
+        });
+      }
+
+      setItems(items.filter((i) => i.id !== itemId));
+      onAudit('DELETE_INVENTORY_ITEM', `Removed asset ${itemCode} from inventory registry.`);
+      showNotification(`Asset ${itemCode} deleted.`);
+    } catch (err: any) {
+      showNotification(err?.message || 'Failed to delete asset.', 'error');
+    }
   };
 
   // Filter Items
@@ -664,7 +761,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ employees, onA
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 const updated: InventoryItem = {
@@ -678,10 +775,28 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ employees, onA
                   notes: String(formData.get('notes') || '').trim(),
                 };
 
-                setItems((prev) => prev.map((item) => (item.id === editingItem.id ? updated : item)));
-                onAudit('UPDATE_INVENTORY_ITEM', `Updated asset ${updated.itemCode} (${updated.name}) with serial ${updated.serialNumber}`);
-                showNotification(`Asset ${updated.itemCode} updated successfully.`);
-                setEditingItem(null);
+                try {
+                  if (serverUrl && session?.company?.id) {
+                    const cleanUrl = serverUrl.replace(/\/$/, '');
+                    const token = session.accessToken || localStorage.getItem('hr360_access_token');
+                    await apiFetch(`${cleanUrl}/api/v1/inventory`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                        'x-company-id': session.company.id,
+                      },
+                      body: JSON.stringify(updated),
+                    });
+                  }
+
+                  setItems((prev) => prev.map((item) => (item.id === editingItem.id ? updated : item)));
+                  onAudit('UPDATE_INVENTORY_ITEM', `Updated asset ${updated.itemCode} (${updated.name}) with serial ${updated.serialNumber}`);
+                  showNotification(`Asset ${updated.itemCode} updated in allocated database.`);
+                  setEditingItem(null);
+                } catch (err: any) {
+                  showNotification(err?.message || 'Error updating asset.', 'error');
+                }
               }}
               className="space-y-3.5"
             >

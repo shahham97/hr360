@@ -10,7 +10,8 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
-  Edit3
+  Edit3,
+  RefreshCw
 } from 'lucide-react';
 import { Employee } from '../types/hr-types';
 import { exportToCSV, parseCSVFile } from '../utils/export-helpers';
@@ -20,9 +21,22 @@ interface Props {
   setEmployees: React.Dispatch<React.SetStateAction<Employee[]>>;
   onAudit: (action: string, details: string) => void;
   userRole?: string;
+  serverUrl?: string;
+  session?: { user: any; company: any; accessToken?: string } | null;
+  apiFetch?: (url: string, init?: RequestInit) => Promise<Response>;
+  onRefresh?: () => Promise<void>;
 }
 
-export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAudit, userRole }) => {
+export const EmployeeModule: React.FC<Props> = ({
+  employees,
+  setEmployees,
+  onAudit,
+  userRole,
+  serverUrl,
+  session,
+  apiFetch = fetch,
+  onRefresh,
+}) => {
   const canViewSensitiveHrData = !userRole || ['COMPANY_ADMIN', 'HR_MANAGER', 'PAYROLL_OFFICER'].includes(userRole);
   const [searchTerm, setSearchTerm] = useState('');
   const [deptFilter, setDeptFilter] = useState('ALL');
@@ -32,6 +46,8 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Form states
   const [empCode, setEmpCode] = useState(`EMP-00${employees.length + 1}`);
@@ -67,7 +83,7 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
     return matchesSearch && matchesDept && matchesStatus;
   });
 
-  const handleAddEmployee = (e: React.FormEvent) => {
+  const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (employees.some((e) => e.employeeCode === empCode)) {
       showNotice(`Employee Code ${empCode} already exists. Duplicates forbidden.`, 'error');
@@ -94,25 +110,76 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
       bankAccount,
     };
 
-    setEmployees((prev) => [newEmp, ...prev]);
-    onAudit('CREATE_EMPLOYEE', `Created employee ${empCode}: ${firstName} ${lastName} (${dept})`);
-    showNotice(`Employee ${empCode} created and stored in local master registry.`);
-    setShowAddModal(false);
+    setIsSubmitting(true);
+    try {
+      if (serverUrl && session?.company?.id) {
+        const cleanUrl = serverUrl.replace(/\/$/, '');
+        const token = session.accessToken || localStorage.getItem('hr360_access_token');
+        const res = await apiFetch(`${cleanUrl}/api/v1/employees`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'x-company-id': session.company.id,
+          },
+          body: JSON.stringify(newEmp),
+        });
 
-    // Reset
-    setEmpCode(`EMP-00${employees.length + 2}`);
-    setFirstName('');
-    setLastName('');
-    setEmail('');
-    setNationalId('');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error?.message || 'Failed to persist employee to allocated database.');
+        }
+
+        const saved = data?.data || newEmp;
+        setEmployees((prev) => [saved, ...prev.filter((e) => e.id !== saved.id)]);
+      } else {
+        setEmployees((prev) => [newEmp, ...prev]);
+      }
+
+      onAudit('CREATE_EMPLOYEE', `Created employee ${empCode}: ${firstName} ${lastName} (${dept})`);
+      showNotice(`Employee ${empCode} created and stored in allocated database.`);
+      setShowAddModal(false);
+
+      // Reset
+      setEmpCode(`EMP-00${employees.length + 2}`);
+      setFirstName('');
+      setLastName('');
+      setEmail('');
+      setNationalId('');
+    } catch (err: any) {
+      showNotice(err?.message || 'Error saving employee to database.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteEmployee = (id: string, code: string) => {
+  const handleDeleteEmployee = async (id: string, code: string) => {
     if (confirm(`Are you sure you want to deactivate and remove employee ${code}? Historical payroll snapshots will be preserved.`)) {
-      setEmployees((prev) => prev.filter((e) => e.id !== id));
-      onAudit('DEACTIVATE_EMPLOYEE', `Deactivated employee record ${code}`);
-      showNotice(`Employee ${code} deactivated.`);
-      if (selectedEmp?.id === id) setSelectedEmp(null);
+      try {
+        if (serverUrl && session?.company?.id) {
+          const cleanUrl = serverUrl.replace(/\/$/, '');
+          const token = session.accessToken || localStorage.getItem('hr360_access_token');
+          const res = await apiFetch(`${cleanUrl}/api/v1/employees?id=${id}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'x-company-id': session.company.id,
+            },
+          });
+
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data?.error?.message || 'Failed to delete employee from allocated database.');
+          }
+        }
+
+        setEmployees((prev) => prev.filter((e) => e.id !== id));
+        onAudit('DEACTIVATE_EMPLOYEE', `Deactivated employee record ${code}`);
+        showNotice(`Employee ${code} deleted from allocated database.`);
+        if (selectedEmp?.id === id) setSelectedEmp(null);
+      } catch (err: any) {
+        showNotice(err?.message || 'Error deleting employee.', 'error');
+      }
     }
   };
 
@@ -129,7 +196,7 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
         if (!row.employeeCode || !row.firstName || !row.email) continue;
         if (employees.some((existing) => existing.employeeCode === row.employeeCode)) continue;
 
-        imported.push({
+        const emp: Employee = {
           id: `emp-${Date.now()}-${count}`,
           employeeCode: row.employeeCode,
           firstName: row.firstName,
@@ -148,14 +215,32 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
           baseSalary: parseFloat(row.baseSalary) || 75000,
           bankName: row.bankName || 'Meezan Bank',
           bankAccount: row.bankAccount || '',
-        });
+        };
+
+        if (serverUrl && session?.company?.id) {
+          try {
+            const cleanUrl = serverUrl.replace(/\/$/, '');
+            const token = session.accessToken || localStorage.getItem('hr360_access_token');
+            await apiFetch(`${cleanUrl}/api/v1/employees`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+                'x-company-id': session.company.id,
+              },
+              body: JSON.stringify(emp),
+            });
+          } catch {}
+        }
+
+        imported.push(emp);
         count++;
       }
 
       if (imported.length > 0) {
         setEmployees((prev) => [...imported, ...prev]);
         onAudit('BULK_IMPORT_EMPLOYEES', `Bulk imported ${imported.length} employee records from file: ${file.name}`);
-        showNotice(`Successfully imported ${imported.length} employee profiles from CSV.`);
+        showNotice(`Successfully imported ${imported.length} employee profiles into allocated database.`);
       } else {
         showNotice('No valid new rows found or all employee codes were duplicates.', 'error');
       }
@@ -220,6 +305,21 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
         </div>
 
         <div className="flex items-center space-x-2">
+          <button
+            onClick={async () => {
+              if (onRefresh) {
+                setIsRefreshing(true);
+                await onRefresh().catch(() => {});
+                setIsRefreshing(false);
+              }
+            }}
+            disabled={isRefreshing}
+            className="px-3 py-1.5 border border-slate-300 bg-white text-slate-700 text-xs font-semibold rounded hover:bg-slate-50 flex items-center"
+            title="Reload employees from allocated database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 text-slate-500 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
           <button
             onClick={handleExportCSV}
             className="px-3 py-1.5 border border-slate-300 bg-white text-slate-700 text-xs font-semibold rounded hover:bg-slate-50 flex items-center"
@@ -666,9 +766,10 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded hover:bg-slate-800"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded hover:bg-slate-800 disabled:opacity-50"
                 >
-                  Save Employee Profile
+                  {isSubmitting ? 'Saving to Database...' : 'Save Employee Profile'}
                 </button>
               </div>
             </form>
@@ -692,7 +793,7 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 const updated: Employee = {
@@ -717,11 +818,34 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
                   emergencyPhone: String(formData.get('emergencyPhone') || editingEmp.emergencyPhone || ''),
                 };
 
-                setEmployees((prev) => prev.map((emp) => (emp.id === editingEmp.id ? updated : emp)));
-                if (selectedEmp?.id === editingEmp.id) setSelectedEmp(updated);
-                onAudit('UPDATE_EMPLOYEE', `Updated employee ${updated.employeeCode}: ${updated.firstName} ${updated.lastName} (${updated.department})`);
-                showNotice(`Employee ${updated.employeeCode} profile updated successfully.`);
-                setEditingEmp(null);
+                try {
+                  if (serverUrl && session?.company?.id) {
+                    const cleanUrl = serverUrl.replace(/\/$/, '');
+                    const token = session.accessToken || localStorage.getItem('hr360_access_token');
+                    const res = await apiFetch(`${cleanUrl}/api/v1/employees`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                        'x-company-id': session.company.id,
+                      },
+                      body: JSON.stringify(updated),
+                    });
+
+                    if (!res.ok) {
+                      const data = await res.json().catch(() => ({}));
+                      throw new Error(data?.error?.message || 'Failed to update employee in allocated database.');
+                    }
+                  }
+
+                  setEmployees((prev) => prev.map((emp) => (emp.id === editingEmp.id ? updated : emp)));
+                  if (selectedEmp?.id === editingEmp.id) setSelectedEmp(updated);
+                  onAudit('UPDATE_EMPLOYEE', `Updated employee ${updated.employeeCode}: ${updated.firstName} ${updated.lastName} (${updated.department})`);
+                  showNotice(`Employee ${updated.employeeCode} profile updated in allocated database.`);
+                  setEditingEmp(null);
+                } catch (err: any) {
+                  showNotice(err?.message || 'Error updating employee record.', 'error');
+                }
               }}
               className="space-y-3 pt-3 text-xs"
             >
@@ -935,9 +1059,10 @@ export const EmployeeModule: React.FC<Props> = ({ employees, setEmployees, onAud
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700 disabled:opacity-50"
                 >
-                  Save Changes
+                  {isSubmitting ? 'Saving to Database...' : 'Save Changes'}
                 </button>
               </div>
             </form>

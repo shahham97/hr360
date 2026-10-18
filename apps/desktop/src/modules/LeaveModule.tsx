@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   CheckCircle2,
@@ -14,9 +14,20 @@ interface Props {
   setLeaves: React.Dispatch<React.SetStateAction<LeaveRequest[]>>;
   employees: Employee[];
   onAudit: (action: string, details: string) => void;
+  serverUrl?: string;
+  session?: { user: any; company: any; accessToken?: string } | null;
+  apiFetch?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
-export const LeaveModule: React.FC<Props> = ({ leaves, setLeaves, employees, onAudit }) => {
+export const LeaveModule: React.FC<Props> = ({
+  leaves,
+  setLeaves,
+  employees,
+  onAudit,
+  serverUrl,
+  session,
+  apiFetch = fetch,
+}) => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -28,12 +39,33 @@ export const LeaveModule: React.FC<Props> = ({ leaves, setLeaves, employees, onA
   const [endDate, setEndDate] = useState('2026-10-16');
   const [reason, setReason] = useState('');
 
+  // Fetch leaves from server on mount
+  useEffect(() => {
+    if (!serverUrl || !session?.company?.id) return;
+    const cleanUrl = serverUrl.replace(/\/$/, '');
+    const token = session.accessToken || localStorage.getItem('hr360_access_token');
+
+    apiFetch(`${cleanUrl}/api/v1/leaves`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-company-id': session.company.id,
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data?.data?.leaves)) {
+          setLeaves(data.data.leaves);
+        }
+      })
+      .catch(() => {});
+  }, [serverUrl, session]);
+
   const showNotice = (text: string, type: 'success' | 'error' = 'success') => {
     setNotification({ text, type });
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleApplyLeave = (e: React.FormEvent) => {
+  const handleApplyLeave = async (e: React.FormEvent) => {
     e.preventDefault();
     const emp = employees.find((x) => x.id === selectedEmpId);
     if (!emp) return;
@@ -58,45 +90,99 @@ export const LeaveModule: React.FC<Props> = ({ leaves, setLeaves, employees, onA
       submittedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
     };
 
-    setLeaves((prev) => [newRequest, ...prev]);
-    onAudit('SUBMIT_LEAVE_REQUEST', `Submitted ${leaveType} leave (${daysCount} days) for ${emp.employeeCode}: ${emp.firstName} ${emp.lastName}`);
-    showNotice(`Leave request for ${emp.firstName} submitted for approval.`);
-    setShowApplyModal(false);
-    setReason('');
+    try {
+      if (serverUrl && session?.company?.id) {
+        const cleanUrl = serverUrl.replace(/\/$/, '');
+        const token = session.accessToken || localStorage.getItem('hr360_access_token');
+        await apiFetch(`${cleanUrl}/api/v1/leaves`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'x-company-id': session.company.id,
+          },
+          body: JSON.stringify(newRequest),
+        });
+      }
+
+      setLeaves((prev) => [newRequest, ...prev]);
+      onAudit('SUBMIT_LEAVE_REQUEST', `Submitted ${leaveType} leave (${daysCount} days) for ${emp.employeeCode}: ${emp.firstName} ${emp.lastName}`);
+      showNotice(`Leave request for ${emp.firstName} submitted and recorded in allocated database.`);
+      setShowApplyModal(false);
+      setReason('');
+    } catch (err: any) {
+      showNotice(err?.message || 'Error submitting leave request.', 'error');
+    }
   };
 
-  const handleApprove = (id: string, empName: string, days: number, type: string) => {
-    setLeaves((prev) =>
-      prev.map((l) =>
-        l.id === id
-          ? {
-              ...l,
-              status: 'APPROVED',
-              reviewedBy: 'Authorized HR Manager',
-              reviewComment: 'Approved via workflow manager.',
-            }
-          : l
-      )
-    );
-    onAudit('APPROVE_LEAVE', `Approved ${days} days ${type} leave for ${empName}`);
-    showNotice(`Leave request for ${empName} approved and balance deducted.`);
+  const handleApprove = async (id: string, empName: string, days: number, type: string) => {
+    try {
+      if (serverUrl && session?.company?.id) {
+        const cleanUrl = serverUrl.replace(/\/$/, '');
+        const token = session.accessToken || localStorage.getItem('hr360_access_token');
+        await apiFetch(`${cleanUrl}/api/v1/leaves`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'x-company-id': session.company.id,
+          },
+          body: JSON.stringify({ id, status: 'APPROVED', reviewedBy: 'Authorized HR Manager', reviewComment: 'Approved via workflow manager.' }),
+        });
+      }
+
+      setLeaves((prev) =>
+        prev.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                status: 'APPROVED',
+                reviewedBy: 'Authorized HR Manager',
+                reviewComment: 'Approved via workflow manager.',
+              }
+            : l
+        )
+      );
+      onAudit('APPROVE_LEAVE', `Approved ${days} days ${type} leave for ${empName}`);
+      showNotice(`Leave request for ${empName} approved in allocated database.`);
+    } catch (err: any) {
+      showNotice(err?.message || 'Error approving leave.', 'error');
+    }
   };
 
-  const handleReject = (id: string, empName: string) => {
-    setLeaves((prev) =>
-      prev.map((l) =>
-        l.id === id
-          ? {
-              ...l,
-              status: 'REJECTED',
-              reviewedBy: 'Authorized HR Manager',
-              reviewComment: 'Insufficient leave quota or conflicting schedule.',
-            }
-          : l
-      )
-    );
-    onAudit('REJECT_LEAVE', `Rejected leave request for ${empName}`);
-    showNotice(`Leave request for ${empName} marked as rejected.`, 'error');
+  const handleReject = async (id: string, empName: string) => {
+    try {
+      if (serverUrl && session?.company?.id) {
+        const cleanUrl = serverUrl.replace(/\/$/, '');
+        const token = session.accessToken || localStorage.getItem('hr360_access_token');
+        await apiFetch(`${cleanUrl}/api/v1/leaves`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'x-company-id': session.company.id,
+          },
+          body: JSON.stringify({ id, status: 'REJECTED', reviewedBy: 'Authorized HR Manager', reviewComment: 'Insufficient leave quota or conflicting schedule.' }),
+        });
+      }
+
+      setLeaves((prev) =>
+        prev.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                status: 'REJECTED',
+                reviewedBy: 'Authorized HR Manager',
+                reviewComment: 'Insufficient leave quota or conflicting schedule.',
+              }
+            : l
+        )
+      );
+      onAudit('REJECT_LEAVE', `Rejected leave request for ${empName}`);
+      showNotice(`Leave request for ${empName} marked as rejected in allocated database.`, 'error');
+    } catch (err: any) {
+      showNotice(err?.message || 'Error rejecting leave.', 'error');
+    }
   };
 
   const filteredLeaves = leaves.filter((l) => {
