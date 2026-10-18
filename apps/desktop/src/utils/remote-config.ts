@@ -26,7 +26,7 @@ export function getActiveServerAddress(): string {
   } catch {}
 
   const buildEnv = (import.meta as any).env?.VITE_API_URL;
-  return buildEnv || 'https://hr360-one.vercel.app';
+  return buildEnv || 'https://hr360-w3fm.vercel.app';
 }
 
 export async function fetchAndApplyRemoteConfig(): Promise<string> {

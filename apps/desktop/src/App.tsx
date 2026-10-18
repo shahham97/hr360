@@ -95,10 +95,13 @@ async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
       body: init?.body ? (typeof init.body === 'string' ? init.body : undefined) : undefined,
     });
     // Build a Response-like object so callers work unchanged
-    const body = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+    const status = (result.status >= 200 && result.status <= 599) ? result.status : 503;
+    const body = typeof result.data === 'string'
+      ? result.data
+      : JSON.stringify(result.data || { error: { code: 'NETWORK_ERROR', message: result.error || result.statusText || 'Unable to reach HR360 Cloud Services' } });
     return new Response(body, {
-      status: result.status,
-      statusText: result.statusText || '',
+      status,
+      statusText: result.statusText || (status === 503 ? 'Service Unavailable' : 'OK'),
       headers: { 'content-type': 'application/json' },
     });
   }
@@ -191,7 +194,7 @@ export default function App() {
       const { getActiveServerAddress } = require('./utils/remote-config');
       return getActiveServerAddress();
     } catch {
-      return (import.meta as any).env?.VITE_API_URL || 'https://hr360-one.vercel.app';
+      return (import.meta as any).env?.VITE_API_URL || 'https://hr360-w3fm.vercel.app';
     }
   });
   const cleanUrl = serverUrl.replace(/\/$/, '');
