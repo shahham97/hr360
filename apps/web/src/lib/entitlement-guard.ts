@@ -94,6 +94,7 @@ export async function issueSignedEntitlement(companyId: string): Promise<{
     where: { id: companyId },
     include: {
       tenant: true,
+      tenantConnection: true,
       subscriptions: {
         include: { plan: true },
         orderBy: { createdAt: 'desc' },
@@ -108,7 +109,11 @@ export async function issueSignedEntitlement(companyId: string): Promise<{
 
   const activeSub = company.subscriptions[0];
   const planCode = activeSub?.plan?.code || 'STARTER';
-  const tenantStatus = company.tenant?.status || 'PENDING';
+  const tenantStatus = (company.status === 'ACTIVE' && (
+    (company.tenantConnection && company.tenantConnection.status === 'ACTIVE') ||
+    (company.tenant && company.tenant.status === 'ACTIVE') ||
+    (!company.tenant && !company.tenantConnection)
+  )) ? 'ACTIVE' : (company.status || 'PENDING');
   const specs = getPlanEntitlementSpecs(planCode);
 
   const now = new Date();

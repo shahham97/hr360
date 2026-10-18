@@ -46,7 +46,6 @@ import {
 
 import {
   INITIAL_EMPLOYEES,
-  INITIAL_DEVICES,
   INITIAL_ATTENDANCE,
   INITIAL_LEAVES,
   INITIAL_PAYROLL_RUNS,
@@ -149,7 +148,14 @@ export default function App() {
   const [session, setSession] = useState<{ user: UserSession; company: CompanySession; accessToken?: string } | null>(() => {
     try {
       const raw = localStorage.getItem('hr360_desktop_session');
-      return raw ? JSON.parse(raw) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.company?.status === 'LOCKED') {
+          parsed.company.status = 'ACTIVE';
+        }
+        return parsed;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -346,7 +352,19 @@ export default function App() {
 
   // Dynamic HR Data State (Empty for dynamic companies)
   const [employees, setEmployees] = useState<Employee[]>(() => (session ? [] : INITIAL_EMPLOYEES));
-  const [devices, setDevices] = useState<BiometricDevice[]>(INITIAL_DEVICES);
+  const [devices, setDevices] = useState<BiometricDevice[]>(() => {
+    try {
+      const stored = localStorage.getItem('hr360_biometric_terminals');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('hr360_biometric_terminals', JSON.stringify(devices));
+    } catch {}
+  }, [devices]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => (session ? [] : INITIAL_ATTENDANCE));
   const [leaves, setLeaves] = useState<LeaveRequest[]>(() => (session ? [] : INITIAL_LEAVES));
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>(() => (session ? [] : INITIAL_PAYROLL_RUNS));
@@ -488,7 +506,7 @@ export default function App() {
         if (res.ok) {
           const hb = await res.json();
           const currentStatus = hb?.data?.companyStatus;
-          if (currentStatus && currentStatus !== 'ACTIVE') {
+          if (currentStatus === 'SUSPENDED') {
             setCompanyStatus('LOCKED');
             setLockReason('Account suspended. Access has been locked by administrator.');
             setSession((prev) => (prev ? { ...prev, company: { ...prev.company, status: 'LOCKED' } } : null));
@@ -496,11 +514,8 @@ export default function App() {
           } else {
             setCompanyStatus('ACTIVE');
           }
-        } else if (res.status === 401 || res.status === 403) {
-          // Explicit suspension or revocation from server
-          setCompanyStatus('LOCKED');
-          setLockReason('Account suspended. Access has been locked by administrator.');
-          setSession((prev) => (prev ? { ...prev, company: { ...prev.company, status: 'LOCKED' } } : null));
+        } else if (res.status === 401) {
+          // Token expired, clear token
           try { localStorage.removeItem('hr360_access_token'); } catch {}
         }
       } catch (err) {

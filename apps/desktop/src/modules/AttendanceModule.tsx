@@ -7,7 +7,9 @@ import {
   Wifi,
   CheckCircle2,
   AlertTriangle,
-  Server
+  Server,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { AttendanceRecord, BiometricDevice } from '../types/hr-types';
 import { exportToCSV } from '../utils/export-helpers';
@@ -33,6 +35,7 @@ export const AttendanceModule: React.FC<Props> = ({
   const [showAddDeviceModal, setShowAddDeviceModal] = useState(false);
   const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
+  const [editingDevice, setEditingDevice] = useState<BiometricDevice | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
   // New Device Form
@@ -112,6 +115,41 @@ export const AttendanceModule: React.FC<Props> = ({
     onAudit('ADD_BIOMETRIC_DEVICE', `Added ${devMfr} terminal "${devName}" at ${devIp}:${devPort}`);
     showNotice(`Biometric terminal "${devName}" registered on local network.`);
     setShowAddDeviceModal(false);
+  };
+
+  const handleDeleteDevice = (deviceId: string) => {
+    if (window.confirm('Are you sure you want to remove this biometric terminal configuration?')) {
+      const dev = devices.find((d) => d.id === deviceId);
+      setDevices((prev) => prev.filter((d) => d.id !== deviceId));
+      onAudit('DELETE_BIOMETRIC_DEVICE', `Removed biometric terminal: ${dev?.name || deviceId}`);
+      showNotice('Biometric terminal configuration removed.');
+    }
+  };
+
+  const handleUpdateDevice = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDevice) return;
+
+    setDevices((prev) =>
+      prev.map((d) =>
+        d.id === editingDevice.id
+          ? {
+              ...d,
+              name: devName,
+              manufacturer: devMfr,
+              model: `${devMfr} Enterprise Standard`,
+              ipAddress: devIp,
+              port: parseInt(devPort) || (devMfr === 'Hikvision' ? 80 : devMfr === 'Anviz' ? 5010 : 4370),
+              protocol: devMfr === 'Hikvision' ? 'ISAPI' : 'TCP/IP',
+              branch: devBranch,
+            }
+          : d
+      )
+    );
+
+    onAudit('UPDATE_BIOMETRIC_DEVICE', `Updated ${devMfr} terminal "${devName}" at ${devIp}:${devPort}`);
+    showNotice(`Biometric terminal "${devName}" updated successfully.`);
+    setEditingDevice(null);
   };
 
   const handleSaveOverride = (e: React.FormEvent) => {
@@ -223,29 +261,158 @@ export const AttendanceModule: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Hardware Devices Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {devices.map((dev) => (
-          <div key={dev.id} className="bg-white p-3 border border-slate-200 shadow-sm text-xs space-y-2">
-            <div className="flex justify-between items-start">
-              <div className="font-bold text-slate-900 flex items-center">
-                <Server className="w-3.5 h-3.5 mr-1.5 text-slate-700" />
-                {dev.name}
+      {/* Hardware Devices Status & Setup Options */}
+      {devices.length === 0 ? (
+        <div className="bg-slate-50 border border-dashed border-slate-300 p-5 rounded-lg text-xs space-y-4">
+          <div className="text-center">
+            <div className="w-10 h-10 mx-auto bg-blue-100 text-blue-700 rounded-full flex items-center justify-center mb-2">
+              <Server className="w-5 h-5" />
+            </div>
+            <h3 className="font-bold text-sm text-slate-900">No Biometric Terminal Configured</h3>
+            <p className="text-slate-500 max-w-md mx-auto mt-0.5 text-[11px]">
+              Set up your local biometric terminal by selecting from the 3 supported manufacturer options below. Once created, you can edit its network settings or delete it at any time.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+            {/* Option 1: ZKTeco */}
+            <div className="bg-white p-3.5 border border-slate-200 rounded-md shadow-sm flex flex-col justify-between hover:border-blue-400 transition-colors">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-bold text-xs text-slate-900">1. ZKTeco Terminal</span>
+                  <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded">TCP/IP</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mb-2">
+                  Standard ZKTeco fingerprint, facial, or RFID terminal communicating over LAN.
+                </p>
+                <div className="text-[10px] text-slate-600 font-mono bg-slate-50 p-1.5 rounded mb-3">
+                  <div>Default Port: 4370</div>
+                  <div>Protocol: Standalone TCP/IP</div>
+                </div>
               </div>
-              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-semibold text-[10px] flex items-center">
-                <Wifi className="w-3 h-3 mr-1" /> ONLINE
-              </span>
+              <button
+                onClick={() => {
+                  setDevMfr('ZKTeco');
+                  setDevName('ZKTeco Main Gate Terminal');
+                  setDevIp('192.168.1.201');
+                  setDevPort('4370');
+                  setDevBranch('Headquarters');
+                  setShowAddDeviceModal(true);
+                }}
+                className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded flex items-center justify-center"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Configure ZKTeco
+              </button>
             </div>
-            <div className="text-slate-600 font-mono text-[11px]">
-              {dev.ipAddress}:{dev.port} ({dev.protocol}) — {dev.branch}
+
+            {/* Option 2: Hikvision */}
+            <div className="bg-white p-3.5 border border-slate-200 rounded-md shadow-sm flex flex-col justify-between hover:border-emerald-400 transition-colors">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-bold text-xs text-slate-900">2. Hikvision MinMoe</span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded">HTTP/ISAPI</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mb-2">
+                  Facial recognition & access control terminal using Hikvision RESTful ISAPI.
+                </p>
+                <div className="text-[10px] text-slate-600 font-mono bg-slate-50 p-1.5 rounded mb-3">
+                  <div>Default Port: 80 / 8000</div>
+                  <div>Protocol: Hikvision ISAPI</div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setDevMfr('Hikvision');
+                  setDevName('Hikvision Facial Terminal');
+                  setDevIp('192.168.1.202');
+                  setDevPort('80');
+                  setDevBranch('Main Entrance');
+                  setShowAddDeviceModal(true);
+                }}
+                className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded flex items-center justify-center"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Configure Hikvision
+              </button>
             </div>
-            <div className="text-slate-500 text-[11px] pt-1 border-t border-slate-100">
-              <div>Last Synced: <span className="font-medium text-slate-700">{dev.lastSyncAt}</span></div>
-              <div>Ingested Punches: <span className="font-bold text-slate-900">{dev.totalSyncedPunches.toLocaleString()}</span></div>
+
+            {/* Option 3: Anviz */}
+            <div className="bg-white p-3.5 border border-slate-200 rounded-md shadow-sm flex flex-col justify-between hover:border-purple-400 transition-colors">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-bold text-xs text-slate-900">3. Anviz Biometric</span>
+                  <span className="text-[10px] bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 rounded">TCP Client</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mb-2">
+                  Anviz fingerprint & RFID access control hardware utilizing TCP port 5010.
+                </p>
+                <div className="text-[10px] text-slate-600 font-mono bg-slate-50 p-1.5 rounded mb-3">
+                  <div>Default Port: 5010</div>
+                  <div>Protocol: Anviz TCP Client</div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setDevMfr('Anviz');
+                  setDevName('Anviz Office Terminal');
+                  setDevIp('192.168.1.203');
+                  setDevPort('5010');
+                  setDevBranch('Branch Office');
+                  setShowAddDeviceModal(true);
+                }}
+                className="w-full py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded flex items-center justify-center"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Configure Anviz
+              </button>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {devices.map((dev) => (
+            <div key={dev.id} className="bg-white p-3 border border-slate-200 shadow-sm text-xs space-y-2">
+              <div className="flex justify-between items-start">
+                <div className="font-bold text-slate-900 flex items-center">
+                  <Server className="w-3.5 h-3.5 mr-1.5 text-slate-700" />
+                  {dev.name}
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-semibold text-[10px] flex items-center">
+                    <Wifi className="w-3 h-3 mr-1" /> ONLINE
+                  </span>
+                  <button
+                    onClick={() => {
+                      setEditingDevice(dev);
+                      setDevName(dev.name);
+                      setDevMfr(dev.manufacturer as any);
+                      setDevIp(dev.ipAddress);
+                      setDevPort(String(dev.port));
+                      setDevBranch(dev.branch);
+                    }}
+                    className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                    title="Edit Terminal Settings"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteDevice(dev.id)}
+                    className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
+                    title="Delete Terminal Configuration"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div className="text-slate-600 font-mono text-[11px]">
+                {dev.ipAddress}:{dev.port} ({dev.protocol}) — {dev.branch}
+              </div>
+              <div className="text-slate-500 text-[11px] pt-1 border-t border-slate-100">
+                <div>Last Synced: <span className="font-medium text-slate-700">{dev.lastSyncAt}</span></div>
+                <div>Ingested Punches: <span className="font-bold text-slate-900">{dev.totalSyncedPunches.toLocaleString()}</span></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Attendance Register Filters */}
       <div className="flex flex-wrap gap-3 bg-white p-3 border border-slate-200 shadow-sm text-xs">
@@ -435,6 +602,96 @@ export const AttendanceModule: React.FC<Props> = ({
                   className="px-4 py-2 bg-slate-900 text-white rounded font-semibold hover:bg-slate-800"
                 >
                   Connect & Register
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Device Modal */}
+      {editingDevice && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-slate-300 shadow-2xl max-w-md w-full p-6 text-xs">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+              <h3 className="font-bold text-base text-slate-900">Edit Biometric Terminal Settings</h3>
+              <button onClick={() => setEditingDevice(null)} className="text-slate-400 font-bold">✕</button>
+            </div>
+            <form onSubmit={handleUpdateDevice} className="space-y-3 pt-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Terminal Device Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={devName}
+                  onChange={(e) => setDevName(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-slate-300"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Manufacturer *</label>
+                  <select
+                    value={devMfr}
+                    onChange={(e) => {
+                      const mfr = e.target.value as any;
+                      setDevMfr(mfr);
+                      if (mfr === 'ZKTeco') setDevPort('4370');
+                      else if (mfr === 'Hikvision') setDevPort('80');
+                      else if (mfr === 'Anviz') setDevPort('5010');
+                    }}
+                    className="w-full px-3 py-1.5 border border-slate-300 bg-white"
+                  >
+                    <option value="ZKTeco">ZKTeco</option>
+                    <option value="Hikvision">Hikvision</option>
+                    <option value="Anviz">Anviz</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Branch Location</label>
+                  <input
+                    type="text"
+                    value={devBranch}
+                    onChange={(e) => setDevBranch(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">LAN IP Address *</label>
+                  <input
+                    type="text"
+                    required
+                    value={devIp}
+                    onChange={(e) => setDevIp(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Port *</label>
+                  <input
+                    type="number"
+                    required
+                    value={devPort}
+                    onChange={(e) => setDevPort(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 font-mono"
+                  />
+                </div>
+              </div>
+              <div className="pt-3 border-t border-slate-200 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingDevice(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>
