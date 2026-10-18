@@ -11,6 +11,7 @@
   "files": [
     "dist/**/*",
     "main.js",
+    "local-migration.js",
     "preload.js",
     "package.json",
     "!src/**/*",

@@ -390,8 +390,12 @@ try {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 } catch {}
-
-const { runLocalDataMigration } = require('./local-migration');
+let runLocalDataMigration = () => ({ success: true });
+try {
+  runLocalDataMigration = require('./local-migration').runLocalDataMigration;
+} catch (e) {
+  console.warn('[main] local-migration module optional load:', e.message);
+}
 
 ipcMain.handle('updater:check-update', async (event, apiUrl) => {
   try {
